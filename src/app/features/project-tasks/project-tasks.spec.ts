@@ -99,6 +99,12 @@ describe('ProjectTasks', () => {
     },
   ];
 
+  const formattedDescription =
+    '<strong>Bold title</strong><ul><li>List item</li></ul><a href="https://example.com">Example link</a>';
+
+  const xssDescription =
+    '<strong>Safe text</strong><img src="x" onerror="alert(1)">';
+
   beforeEach(async () => {
     projectService = {
       getProjectDetail: vi.fn(),
@@ -218,9 +224,8 @@ describe('ProjectTasks', () => {
     titleInput.value = 'New task';
     titleInput.dispatchEvent(new Event('input'));
 
-    const descriptionInput = compiled.querySelector('#task-description') as HTMLTextAreaElement;
-    descriptionInput.value = 'Task description';
-    descriptionInput.dispatchEvent(new Event('input'));
+    (fixture.componentInstance as ProjectTasks & { createForm: { patchValue: (v: object) => void } })
+      .createForm.patchValue({ description: 'Task description' });
 
     const assigneeSelect = compiled.querySelector('#task-assignee') as HTMLSelectElement;
     assigneeSelect.value = 'mem-1';
@@ -238,6 +243,17 @@ describe('ProjectTasks', () => {
 
   function getCompiled(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
+  }
+
+  function expectSanitizedRichDescription(element: Element | null): void {
+    expect(element).not.toBeNull();
+    const html = element!.innerHTML;
+    expect(html).toMatch(/<(strong|b)[^>]*>Bold title<\/(strong|b)>/);
+    expect(html).toMatch(/<ul[\s>]/);
+    expect(html).toMatch(/<li[\s>]/);
+    expect(html).toMatch(/<a[^>]*href="https:\/\/example\.com"[^>]*>Example link<\/a>/);
+    expect(html).not.toMatch(/onerror/i);
+    expect(html).not.toContain('<img');
   }
 
   it('should load task hierarchy for the project id from the route', () => {
@@ -438,11 +454,8 @@ describe('ProjectTasks', () => {
     titleInput.value = '';
     titleInput.dispatchEvent(new Event('input'));
 
-    const descriptionInput = getCompiled().querySelector(
-      '#edit-description-task-1',
-    ) as HTMLTextAreaElement;
-    descriptionInput.value = '';
-    descriptionInput.dispatchEvent(new Event('input'));
+    (fixture.componentInstance as ProjectTasks & { editForm: { patchValue: (v: object) => void } })
+      .editForm.patchValue({ description: '' });
 
     const assigneeSelect = getCompiled().querySelector('#edit-assignee-task-1') as HTMLSelectElement;
     assigneeSelect.value = '';
@@ -541,6 +554,150 @@ describe('ProjectTasks', () => {
     expect(projectService.duplicateTask).toHaveBeenCalledWith('proj-1', 'task-1', {
       includeSubtasks: false,
     });
+  });
+
+  it('should create a task with rich text description and render sanitized HTML after reload', () => {
+    mockLoadSuccess();
+    const hierarchyWithRichTask: TaskHierarchyNode[] = [
+      ...mockHierarchy,
+      {
+        id: 'task-100',
+        title: 'Rich task',
+        status: 'open',
+        milestoneId: null,
+        assigneeId: 'mem-1',
+        description: formattedDescription,
+        dueDate: '2026-08-01T00:00:00.000Z',
+        subtasks: [],
+      },
+    ];
+
+    projectService.getTaskHierarchy
+      .mockReturnValueOnce(of({ tasks: mockHierarchy }))
+      .mockReturnValue(of({ tasks: hierarchyWithRichTask }));
+    projectService.createTask.mockReturnValue(
+      of({
+        id: 'task-100',
+        title: 'Rich task',
+        status: 'open',
+        milestoneId: null,
+        assigneeId: 'mem-1',
+        description: formattedDescription,
+      }),
+    );
+
+    createComponent();
+
+    const titleInput = getCompiled().querySelector('#task-title') as HTMLInputElement;
+    titleInput.value = 'Rich task';
+    titleInput.dispatchEvent(new Event('input'));
+
+    (fixture.componentInstance as ProjectTasks & { createForm: { patchValue: (v: object) => void } })
+      .createForm.patchValue({ description: formattedDescription });
+
+    const assigneeSelect = getCompiled().querySelector('#task-assignee') as HTMLSelectElement;
+    assigneeSelect.value = 'mem-1';
+    assigneeSelect.dispatchEvent(new Event('change'));
+
+    const dueDateInput = getCompiled().querySelector('#task-due-date') as HTMLInputElement;
+    dueDateInput.value = '2026-08-01';
+    dueDateInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('.task-create-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
+
+    expect(projectService.createTask).toHaveBeenCalledWith(
+      'proj-1',
+      expect.objectContaining({
+        title: 'Rich task',
+        description: formattedDescription,
+        assigneeId: 'mem-1',
+        dueDate: '2026-08-01T00:00:00.000Z',
+      }),
+    );
+
+    const richTaskCard = Array.from(getCompiled().querySelectorAll('.task-card')).find((card) =>
+      card.textContent?.includes('Rich task'),
+    );
+    const descriptionEl = richTaskCard?.querySelector('.task-description-rich') ?? null;
+    expectSanitizedRichDescription(descriptionEl);
+  });
+
+  it('should update a task with rich text description and render sanitized HTML after reload', () => {
+    mockLoadSuccess();
+    const updatedHierarchy: TaskHierarchyNode[] = [
+      {
+        ...mockHierarchy[0],
+        description: formattedDescription,
+      },
+      mockHierarchy[1],
+    ];
+
+    projectService.getTaskHierarchy
+      .mockReturnValueOnce(of({ tasks: mockHierarchy }))
+      .mockReturnValue(of({ tasks: updatedHierarchy }));
+    projectService.updateTask.mockReturnValue(
+      of({
+        id: 'task-1',
+        title: 'Update homepage hero',
+        status: 'done',
+        milestoneId: 'ms-1',
+        assigneeId: 'mem-1',
+        description: formattedDescription,
+      }),
+    );
+
+    createComponent();
+
+    const editButton = getCompiled().querySelector(
+      '[aria-label="Edit task Update homepage hero"]',
+    ) as HTMLButtonElement;
+    editButton.click();
+    fixture.detectChanges();
+
+    (fixture.componentInstance as ProjectTasks & { editForm: { patchValue: (v: object) => void } })
+      .editForm.patchValue({ description: formattedDescription });
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('.task-edit-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
+
+    expect(projectService.updateTask).toHaveBeenCalledWith(
+      'proj-1',
+      'task-1',
+      expect.objectContaining({
+        description: formattedDescription,
+      }),
+    );
+
+    const descriptionEl = getCompiled().querySelector(
+      '.task-description-rich',
+    ) as HTMLElement | null;
+    expectSanitizedRichDescription(descriptionEl);
+  });
+
+  it('should strip XSS payloads from rendered task descriptions', () => {
+    mockLoadSuccess();
+    const hierarchyWithXss: TaskHierarchyNode[] = [
+      {
+        ...mockHierarchy[0],
+        description: xssDescription,
+      },
+      mockHierarchy[1],
+    ];
+    projectService.getTaskHierarchy.mockReturnValue(of({ tasks: hierarchyWithXss }));
+
+    createComponent();
+
+    const descriptionEl = getCompiled().querySelector(
+      '.task-description-rich',
+    ) as HTMLElement | null;
+    expect(descriptionEl).not.toBeNull();
+    const html = descriptionEl!.innerHTML;
+    expect(html).toMatch(/<(strong|b)[^>]*>Safe text<\/(strong|b)>/);
+    expect(html).not.toMatch(/onerror/i);
+    expect(html).not.toContain('<img');
   });
 
   it('should create a subtask with parentTaskId when subtask form is submitted', () => {

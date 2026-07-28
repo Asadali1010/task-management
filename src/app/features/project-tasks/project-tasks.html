@@ -84,11 +84,9 @@
         </div>
         <div class="task-form-field">
           <label for="task-description" class="task-form-label">Description</label>
-          <textarea
+          <app-rich-text-editor
             id="task-description"
-            class="task-form-textarea"
             formControlName="description"
-            rows="2"
             [class.task-form-input-invalid]="
               createForm.controls.description.touched && createForm.controls.description.invalid
             "
@@ -96,7 +94,7 @@
               createForm.controls.description.touched && createForm.controls.description.invalid
             "
             aria-describedby="task-description-error"
-          ></textarea>
+          ></app-rich-text-editor>
           @if (
             createForm.controls.description.touched &&
             createForm.controls.description.hasError('required')
@@ -361,11 +359,9 @@
                       <label [for]="'edit-description-' + row.node.id" class="task-form-label">
                         Description
                       </label>
-                      <textarea
+                      <app-rich-text-editor
                         [id]="'edit-description-' + row.node.id"
-                        class="task-form-textarea"
                         formControlName="description"
-                        rows="2"
                         [class.task-form-input-invalid]="
                           editForm.controls.description.touched && editForm.controls.description.invalid
                         "
@@ -373,7 +369,7 @@
                           editForm.controls.description.touched && editForm.controls.description.invalid
                         "
                         [attr.aria-describedby]="'edit-description-error-' + row.node.id"
-                      ></textarea>
+                      ></app-rich-text-editor>
                       @if (
                         editForm.controls.description.touched &&
                         editForm.controls.description.hasError('required')
@@ -519,8 +515,11 @@
                           </span>
                         }
                       </div>
-                      @if (row.node.description) {
-                        <p class="task-description">{{ row.node.description }}</p>
+                      @if (hasTaskDescription(row.node.description)) {
+                        <div
+                          class="task-description task-description-rich"
+                          [innerHTML]="getTaskDescriptionHtml(row.node.description)"
+                        ></div>
                       }
                       <p class="task-assignee">
                         Assigned to {{ getAssigneeName(row.node.assigneeId) }}

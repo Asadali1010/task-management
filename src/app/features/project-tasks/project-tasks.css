@@ -354,7 +354,8 @@
 }
 
 .task-form-input-invalid,
-.task-form-textarea.task-form-input-invalid {
+.task-form-textarea.task-form-input-invalid,
+app-rich-text-editor.task-form-input-invalid .rich-text-editor {
   border-color: var(--pt-error-bd);
   background: var(--pt-error-bg);
 }
@@ -520,6 +521,34 @@
   margin: 0;
   font-size: var(--pt-fs-sm);
   color: var(--pt-muted);
+}
+
+.task-description-rich :is(strong, b) {
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+.task-description-rich :is(em, i) {
+  font-style: italic;
+}
+
+.task-description-rich :is(ul, ol) {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.task-description-rich li + li {
+  margin-top: 0.125rem;
+}
+
+.task-description-rich a {
+  color: var(--pt-link);
+  text-decoration: underline;
+  text-underline-offset: 0.125em;
+}
+
+.task-description-rich a:hover {
+  color: var(--pt-link-h);
 }
 
 .task-assignee {

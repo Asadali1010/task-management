@@ -1,0 +1,95 @@
+@import 'quill/dist/quill.snow.css';
+
+.rich-text-editor {
+  --rte-border: var(--app-input-border, #cbd5e1);
+  --rte-border-focus: var(--app-focus, #0d7377);
+  --rte-focus-ring: var(--app-focus-ring, rgba(13, 115, 119, 0.28));
+  --rte-bg: var(--app-input-bg, #ffffff);
+  --rte-text: var(--app-input-text, #0f172a);
+  --rte-muted: var(--app-text-muted, #475569);
+  --rte-radius: var(--app-radius-md, 0.625rem);
+}
+
+.rich-text-editor__host {
+  background: var(--rte-bg);
+  border: 1px solid var(--rte-border);
+  border-radius: var(--rte-radius);
+  color: var(--rte-text);
+  transition: border-color var(--app-transition-duration, 220ms) ease,
+    box-shadow var(--app-transition-duration, 220ms) ease;
+}
+
+.rich-text-editor__host:focus-within {
+  border-color: var(--rte-border-focus);
+  box-shadow: 0 0 0 3px var(--rte-focus-ring);
+}
+
+.rich-text-editor :is(.ql-toolbar.ql-snow, .ql-container.ql-snow) {
+  border: none;
+}
+
+.rich-text-editor .ql-toolbar.ql-snow {
+  border-bottom: 1px solid var(--rte-border);
+  border-radius: var(--rte-radius) var(--rte-radius) 0 0;
+}
+
+.rich-text-editor .ql-container.ql-snow {
+  border-radius: 0 0 var(--rte-radius) var(--rte-radius);
+  font-family: inherit;
+  font-size: 1rem;
+  min-height: 8rem;
+}
+
+.rich-text-editor .ql-editor {
+  min-height: 8rem;
+}
+
+.rich-text-editor .ql-editor.ql-blank::before {
+  color: var(--app-placeholder, #94a3b8);
+  font-style: normal;
+}
+
+.rich-text-editor .ql-snow .ql-stroke {
+  stroke: var(--rte-muted);
+}
+
+.rich-text-editor .ql-snow .ql-fill {
+  fill: var(--rte-muted);
+}
+
+.rich-text-editor .ql-snow .ql-picker {
+  color: var(--rte-muted);
+}
+
+.rich-text-editor .ql-snow .ql-picker-options {
+  background: var(--rte-bg);
+  border-color: var(--rte-border);
+}
+
+.rich-text-editor .ql-snow.ql-toolbar button:hover,
+.rich-text-editor .ql-snow .ql-toolbar button:hover,
+.rich-text-editor .ql-snow.ql-toolbar button:focus,
+.rich-text-editor .ql-snow .ql-toolbar button:focus,
+.rich-text-editor .ql-snow.ql-toolbar button.ql-active,
+.rich-text-editor .ql-snow .ql-toolbar button.ql-active {
+  color: var(--rte-border-focus);
+}
+
+.rich-text-editor .ql-snow.ql-toolbar button:hover .ql-stroke,
+.rich-text-editor .ql-snow .ql-toolbar button:hover .ql-stroke,
+.rich-text-editor .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.rich-text-editor .ql-snow .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--rte-border-focus);
+}
+
+.rich-text-editor .ql-snow.ql-toolbar button:hover .ql-fill,
+.rich-text-editor .ql-snow .ql-toolbar button:hover .ql-fill,
+.rich-text-editor .ql-snow.ql-toolbar button.ql-active .ql-fill,
+.rich-text-editor .ql-snow .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--rte-border-focus);
+}
+
+.rich-text-editor--disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}

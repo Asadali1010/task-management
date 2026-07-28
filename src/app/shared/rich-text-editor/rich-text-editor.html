@@ -1,0 +1,7 @@
+<div
+  class="rich-text-editor"
+  [class.rich-text-editor--disabled]="disabled"
+  (focusout)="onBlur()"
+>
+  <div #editorHost class="rich-text-editor__host" aria-label="Rich text description"></div>
+</div>
