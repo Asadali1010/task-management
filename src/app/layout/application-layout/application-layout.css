@@ -1,0 +1,24 @@
+.application-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--app-bg);
+}
+
+.application-layout-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.application-layout-main {
+  flex: 1;
+  min-width: 0;
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .application-layout-main {
+    padding: 1.25rem 1.5rem;
+  }
+}

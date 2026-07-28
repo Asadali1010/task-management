@@ -1,0 +1,19 @@
+<div class="application-layout">
+  <app-top-header
+    [showMenuButton]="isMobile()"
+    [menuExpanded]="sidebarOpen()"
+    (menuToggle)="toggleSidebar()"
+  />
+
+  <div class="application-layout-body">
+    <app-sidebar
+      [isOpen]="sidebarOpen()"
+      [isMobile]="isMobile()"
+      (navClosed)="closeSidebar()"
+    />
+
+    <main class="application-layout-main" id="main-content">
+      <router-outlet />
+    </main>
+  </div>
+</div>

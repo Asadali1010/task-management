@@ -17,14 +17,15 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render app shell with navbar brand and router outlet', async () => {
+  it('should render only the root router outlet', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.navbar-brand')?.textContent).toContain('task-management');
-    expect(compiled.querySelector('main.container')).toBeTruthy();
+    expect(compiled.querySelector('.navbar')).toBeNull();
+    expect(compiled.querySelector('main.container')).toBeNull();
     expect(compiled.querySelector('router-outlet')).toBeTruthy();
+    expect(compiled.children).toHaveLength(1);
   });
 });

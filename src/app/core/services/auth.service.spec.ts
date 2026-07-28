@@ -65,4 +65,16 @@ describe('AuthService', () => {
     expect(localStorage.getItem('auth_token')).toBe('new-token');
     expect(sessionStorage.getItem('auth_token')).toBeNull();
   });
+
+  it('should expose current user email and initials from stored mock token', () => {
+    localStorage.setItem('auth_token', 'mock-token.jane.doe@example.com');
+
+    expect(service.getCurrentUserEmail()).toBe('jane.doe@example.com');
+    expect(service.getCurrentUserInitials()).toBe('JD');
+  });
+
+  it('should return fallback initials when no token is stored', () => {
+    expect(service.getCurrentUserEmail()).toBeNull();
+    expect(service.getCurrentUserInitials()).toBe('?');
+  });
 });
