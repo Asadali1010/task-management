@@ -1,0 +1,73 @@
+<header class="top-header">
+  <div class="top-header-start">
+    @if (showMenuButton()) {
+      <button
+        type="button"
+        class="top-header-icon-btn top-header-menu-btn"
+        aria-controls="app-sidebar"
+        [attr.aria-expanded]="menuExpanded()"
+        aria-label="Open navigation menu"
+        (click)="toggleMenu()"
+      >
+        <span class="top-header-menu-icon" aria-hidden="true"></span>
+      </button>
+    }
+
+    <a class="top-header-brand" routerLink="/dashboard" aria-label="Task Management home">
+      <span class="top-header-logo" aria-hidden="true">TM</span>
+      <span class="top-header-brand-name">Task Management</span>
+    </a>
+
+    <nav class="top-header-breadcrumb" aria-label="Current page">
+      <span class="top-header-page-title">{{ pageTitle() }}</span>
+    </nav>
+  </div>
+
+  <div class="top-header-actions">
+    <button
+      type="button"
+      class="top-header-icon-btn"
+      [attr.aria-label]="themeToggleLabel()"
+      (click)="toggleTheme()"
+    >
+      @if (themeService.isDark()) {
+        <span class="top-header-theme-icon" aria-hidden="true">☀</span>
+      } @else {
+        <span class="top-header-theme-icon" aria-hidden="true">☾</span>
+      }
+    </button>
+
+    <button
+      type="button"
+      class="top-header-icon-btn top-header-notifications-btn"
+      aria-label="Notifications"
+      disabled
+    >
+      <span class="top-header-notifications-icon" aria-hidden="true"></span>
+    </button>
+
+    <div class="top-header-profile">
+      <button
+        type="button"
+        class="top-header-avatar-btn"
+        aria-haspopup="menu"
+        [attr.aria-expanded]="profileMenuOpen()"
+        aria-label="User account menu"
+        (click)="toggleProfileMenu()"
+      >
+        <span class="top-header-avatar" aria-hidden="true">{{ userInitials() }}</span>
+      </button>
+
+      @if (profileMenuOpen()) {
+        <div class="top-header-profile-menu" role="menu">
+          @if (userEmail()) {
+            <p class="top-header-profile-email" role="presentation">{{ userEmail() }}</p>
+          }
+          <button type="button" class="top-header-profile-action" role="menuitem" (click)="logout()">
+            Log out
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</header>

@@ -1,0 +1,33 @@
+@if (isMobile() && isOpen()) {
+  <button
+    type="button"
+    class="sidebar-backdrop"
+    aria-label="Close navigation menu"
+    (click)="onBackdropClick()"
+  ></button>
+}
+
+<nav
+  id="app-sidebar"
+  class="sidebar"
+  [class.sidebar--open]="isOpen()"
+  [class.sidebar--mobile]="isMobile()"
+  aria-label="Main navigation"
+>
+  <ul class="sidebar-nav" role="list">
+    @for (item of navigationItems; track item.route) {
+      <li class="sidebar-nav-item">
+        <a
+          class="sidebar-nav-link"
+          [routerLink]="item.route"
+          routerLinkActive="sidebar-nav-link--active"
+          [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
+          [attr.aria-label]="item.ariaLabel"
+          (click)="onNavigate()"
+        >
+          {{ item.label }}
+        </a>
+      </li>
+    }
+  </ul>
+</nav>
