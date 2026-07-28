@@ -5,12 +5,13 @@ import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
 import { mockAuthInterceptor } from './core/interceptors/mock-auth.interceptor';
+import { mockProjectInterceptor } from './core/interceptors/mock-project.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideClientHydration(),
-    provideHttpClient(withFetch(), withInterceptors([mockAuthInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([mockAuthInterceptor, mockProjectInterceptor])),
   ],
 };

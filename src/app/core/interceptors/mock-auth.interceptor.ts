@@ -7,7 +7,7 @@ import { LoginRequest, LoginResponse } from '../models/auth.models';
 export const mockAuthInterceptor: HttpInterceptorFn = (req, next) => {
   const isLoginRequest = req.method === 'POST' && req.url === `${environment.apiUrl}/auth/login`;
 
-  if (!environment.mockAuth || !isLoginRequest) {
+  if (!environment.mockApi || !isLoginRequest) {
     return next(req);
   }
 
