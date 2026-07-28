@@ -12,6 +12,20 @@
       }
     </div>
   } @else if (project(); as detail) {
+    @if (isArchived(detail)) {
+      <div class="project-archived-banner" role="status" aria-live="polite">
+        <span class="project-archived-badge">Archived</span>
+        <p class="project-archived-message">
+          This project is archived and hidden from the active project list.
+          @if (detail.metadata.archivedAt) {
+            <time [dateTime]="detail.metadata.archivedAt">
+              Archived on {{ detail.metadata.archivedAt | date: 'mediumDate' }}.
+            </time>
+          }
+        </p>
+      </div>
+    }
+
     <header class="project-header" aria-labelledby="project-name-heading">
       <div class="project-header-main">
         <p class="project-eyebrow">Project overview</p>
@@ -36,6 +50,40 @@
           <dd>{{ detail.metadata.updatedAt | date: 'mediumDate' }}</dd>
         </div>
       </dl>
+      @if (canArchiveOrRestore(detail)) {
+        <div class="project-header-actions">
+          @if (archiveRestoreError()) {
+            <p class="project-archive-restore-error" role="alert">{{ archiveRestoreError() }}</p>
+          }
+          @if (isArchived(detail)) {
+            <button
+              type="button"
+              class="project-restore-btn"
+              (click)="onRestore()"
+              [disabled]="isRestoring() || isArchiving()"
+            >
+              @if (isRestoring()) {
+                Restoring…
+              } @else {
+                Restore project
+              }
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="project-archive-btn"
+              (click)="onArchive()"
+              [disabled]="isArchiving() || isRestoring()"
+            >
+              @if (isArchiving()) {
+                Archiving…
+              } @else {
+                Archive project
+              }
+            </button>
+          }
+        </div>
+      }
     </header>
 
     <nav class="project-nav" aria-label="Project sections">

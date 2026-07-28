@@ -7,9 +7,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { ASSIGNABLE_ROLES, hasPermission } from '../../core/constants/project-role.permissions';
 import {
+  ArchiveProjectResponse,
   ProjectDetail as ProjectDetailModel,
   ProjectMember,
   ProjectRole,
+  RestoreProjectResponse,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
 
@@ -34,6 +36,9 @@ export class ProjectDetail implements OnInit {
   protected readonly isInviting = signal(false);
   protected readonly removingMemberId = signal<string | null>(null);
   protected readonly updatingMemberRoleId = signal<string | null>(null);
+  protected readonly archiveRestoreError = signal<string | null>(null);
+  protected readonly isArchiving = signal(false);
+  protected readonly isRestoring = signal(false);
 
   protected readonly inviteForm = this.fb.nonNullable.group({
     identifier: ['', Validators.required],
@@ -75,6 +80,71 @@ export class ProjectDetail implements OnInit {
 
   protected canManageMembers(detail: ProjectDetailModel): boolean {
     return detail.viewerRole === 'owner' || detail.viewerRole === 'admin';
+  }
+
+  protected canArchiveOrRestore(detail: ProjectDetailModel): boolean {
+    return hasPermission(detail.viewerRole, 'archiveProject');
+  }
+
+  protected isArchived(detail: ProjectDetailModel): boolean {
+    return detail.metadata.archivedAt !== null;
+  }
+
+  protected onArchive(): void {
+    if (this.isArchiving() || this.isRestoring()) {
+      return;
+    }
+
+    const detail = this.project();
+    if (!detail || this.isArchived(detail) || !this.canArchiveOrRestore(detail)) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Archive this project? It will be hidden from the active project list. You can restore it later from Archived projects.',
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.isArchiving.set(true);
+    this.archiveRestoreError.set(null);
+
+    this.projectService.archiveProject(this.projectId()).subscribe({
+      next: (response) => {
+        this.isArchiving.set(false);
+        this.applyArchiveRestoreResponse(response);
+      },
+      error: (error) => {
+        this.isArchiving.set(false);
+        this.archiveRestoreError.set(this.getArchiveRestoreErrorMessage(error, 'archive'));
+      },
+    });
+  }
+
+  protected onRestore(): void {
+    if (this.isArchiving() || this.isRestoring()) {
+      return;
+    }
+
+    const detail = this.project();
+    if (!detail || !this.isArchived(detail) || !this.canArchiveOrRestore(detail)) {
+      return;
+    }
+
+    this.isRestoring.set(true);
+    this.archiveRestoreError.set(null);
+
+    this.projectService.restoreProject(this.projectId()).subscribe({
+      next: (response) => {
+        this.isRestoring.set(false);
+        this.applyArchiveRestoreResponse(response);
+      },
+      error: (error) => {
+        this.isRestoring.set(false);
+        this.archiveRestoreError.set(this.getArchiveRestoreErrorMessage(error, 'restore'));
+      },
+    });
   }
 
   protected canRemoveMember(member: ProjectMember): boolean {
@@ -185,6 +255,45 @@ export class ProjectDetail implements OnInit {
         this.memberActionError.set(this.getMemberActionErrorMessage(error, 'remove'));
       },
     });
+  }
+
+  private applyArchiveRestoreResponse(
+    response: ArchiveProjectResponse | RestoreProjectResponse,
+  ): void {
+    const current = this.project();
+    if (!current) {
+      return;
+    }
+
+    const { project } = response;
+    this.project.set({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        name: project.name,
+        description: project.description,
+        status: project.status,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+        archivedAt: project.archivedAt,
+      },
+      viewerRole: project.viewerRole,
+    });
+  }
+
+  private getArchiveRestoreErrorMessage(
+    error: unknown,
+    action: 'archive' | 'restore',
+  ): string {
+    if (error instanceof HttpErrorResponse && error.status === 403) {
+      return action === 'archive'
+        ? 'You do not have permission to archive this project.'
+        : 'You do not have permission to restore this project.';
+    }
+
+    return action === 'archive'
+      ? 'Unable to archive project. Try again in a moment.'
+      : 'Unable to restore project. Try again in a moment.';
   }
 
   private updateProjectMembers(

@@ -1,10 +1,10 @@
 import { ProjectRole } from '../models/project.models';
 
-export type ProjectPermission = 'manageMembers' | 'changeRoles';
+export type ProjectPermission = 'manageMembers' | 'changeRoles' | 'archiveProject';
 
 export const ROLE_PERMISSIONS: Record<ProjectRole, readonly ProjectPermission[]> = {
-  owner: ['manageMembers', 'changeRoles'],
-  admin: ['manageMembers', 'changeRoles'],
+  owner: ['manageMembers', 'changeRoles', 'archiveProject'],
+  admin: ['manageMembers', 'changeRoles', 'archiveProject'],
   member: [],
 };
 

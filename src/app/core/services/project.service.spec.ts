@@ -4,8 +4,12 @@ import { TestBed } from '@angular/core/testing';
 
 import { environment } from '../../../environments/environment';
 import {
+  ArchiveProjectResponse,
   InviteMemberResponse,
   ProjectDetail,
+  ProjectListResponse,
+  ProjectSummary,
+  RestoreProjectResponse,
   UpdateMemberRoleResponse,
 } from '../models/project.models';
 import { ProjectService } from './project.service';
@@ -22,6 +26,7 @@ describe('ProjectService', () => {
       status: 'active',
       createdAt: '2026-01-15T10:00:00Z',
       updatedAt: '2026-07-20T14:30:00Z',
+      archivedAt: null,
     },
     members: [
       {
@@ -76,6 +81,88 @@ describe('ProjectService', () => {
 
   afterEach(() => {
     httpMock.verify();
+  });
+
+  const mockProjectSummary: ProjectSummary = {
+    id: 'proj-1',
+    name: 'Website Redesign',
+    description: 'Redesign the company website',
+    status: 'active',
+    createdAt: '2026-01-15T10:00:00Z',
+    updatedAt: '2026-07-20T14:30:00Z',
+    archivedAt: null,
+    viewerRole: 'owner',
+  };
+
+  const mockProjectListResponse: ProjectListResponse = {
+    projects: [mockProjectSummary],
+  };
+
+  it('should fetch active projects by default', () => {
+    service.getProjects().subscribe((response) => {
+      expect(response).toEqual(mockProjectListResponse);
+    });
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${environment.apiUrl}/projects` &&
+        request.params.get('archived') === 'false',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(mockProjectListResponse);
+  });
+
+  it('should fetch archived projects when archived option is true', () => {
+    const archivedSummary: ProjectSummary = {
+      ...mockProjectSummary,
+      archivedAt: '2026-07-25T12:00:00Z',
+    };
+    const archivedListResponse: ProjectListResponse = { projects: [archivedSummary] };
+
+    service.getProjects({ archived: true }).subscribe((response) => {
+      expect(response).toEqual(archivedListResponse);
+    });
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${environment.apiUrl}/projects` &&
+        request.params.get('archived') === 'true',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(archivedListResponse);
+  });
+
+  it('should archive a project', () => {
+    const mockArchiveResponse: ArchiveProjectResponse = {
+      project: {
+        ...mockProjectSummary,
+        archivedAt: '2026-07-28T10:00:00Z',
+      },
+    };
+
+    service.archiveProject('proj-1').subscribe((response) => {
+      expect(response).toEqual(mockArchiveResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/archive`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush(mockArchiveResponse);
+  });
+
+  it('should restore a project', () => {
+    const mockRestoreResponse: RestoreProjectResponse = {
+      project: mockProjectSummary,
+    };
+
+    service.restoreProject('proj-1').subscribe((response) => {
+      expect(response).toEqual(mockRestoreResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/restore`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush(mockRestoreResponse);
   });
 
   it('should fetch project detail by id', () => {

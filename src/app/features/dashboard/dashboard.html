@@ -1,4 +1,105 @@
-<div class="dashboard-placeholder">
-  <h1 class="h3 mb-2">Dashboard</h1>
-  <p class="text-muted mb-0">Your task management workspace.</p>
+<div class="dashboard-page">
+  <header class="dashboard-header" aria-labelledby="dashboard-heading">
+    <div class="dashboard-header-main">
+      <p class="dashboard-eyebrow">Workspace</p>
+      <h1 id="dashboard-heading" class="dashboard-title">Projects</h1>
+      <p class="dashboard-subtitle">Open a project to manage tasks and track progress.</p>
+    </div>
+
+    <div class="dashboard-view-toggle" role="tablist" aria-label="Project list view">
+      <button
+        type="button"
+        class="dashboard-view-btn"
+        role="tab"
+        [class.dashboard-view-btn-active]="isActiveView()"
+        [attr.aria-selected]="isActiveView()"
+        (click)="setView('active')"
+      >
+        Active
+      </button>
+      <button
+        type="button"
+        class="dashboard-view-btn"
+        role="tab"
+        [class.dashboard-view-btn-active]="!isActiveView()"
+        [attr.aria-selected]="!isActiveView()"
+        (click)="setView('archived')"
+      >
+        Archived
+      </button>
+    </div>
+  </header>
+
+  @if (isLoading()) {
+    <div class="dashboard-state" role="status" aria-live="polite">
+      <p class="dashboard-state-message">
+        @if (isActiveView()) {
+          Loading active projects…
+        } @else {
+          Loading archived projects…
+        }
+      </p>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="dashboard-state dashboard-state-error" role="alert">
+      <h2 class="dashboard-state-heading">Something went wrong</h2>
+      <p class="dashboard-state-message">{{ errorMessage() }}</p>
+      <button type="button" class="dashboard-retry-btn" (click)="retryLoad()">Try again</button>
+    </div>
+  } @else if (projects().length === 0) {
+    <div class="dashboard-state dashboard-state-empty">
+      @if (isActiveView()) {
+        <h2 class="dashboard-state-heading">No active projects</h2>
+        <p class="dashboard-state-message">
+          Projects you work on will appear here. Archived projects stay available under Archived.
+        </p>
+      } @else {
+        <h2 class="dashboard-state-heading">No archived projects</h2>
+        <p class="dashboard-state-message">
+          Archived projects are hidden from the active list. Restore one here to bring it back.
+        </p>
+      }
+    </div>
+  } @else {
+    @if (restoreError()) {
+      <p class="dashboard-restore-error" role="alert">{{ restoreError() }}</p>
+    }
+
+    <ul class="dashboard-project-list">
+      @for (project of projects(); track project.id) {
+        <li class="dashboard-project-item">
+          <a class="dashboard-project-link" [routerLink]="['/projects', project.id]">
+            <span class="dashboard-project-name">{{ project.name }}</span>
+            @if (project.description) {
+              <span class="dashboard-project-description">{{ project.description }}</span>
+            }
+            <span class="dashboard-project-meta">
+              <span class="dashboard-status-badge">{{ formatStatus(project.status) }}</span>
+              @if (!isActiveView() && project.archivedAt) {
+                <span class="dashboard-archived-badge">Archived</span>
+                <time [dateTime]="project.archivedAt">
+                  {{ project.archivedAt | date: 'mediumDate' }}
+                </time>
+              }
+            </span>
+          </a>
+          @if (!isActiveView() && canRestore(project)) {
+            <button
+              type="button"
+              class="dashboard-restore-btn"
+              (click)="onRestore(project.id, $event)"
+              [disabled]="restoringProjectId() === project.id"
+              [attr.aria-label]="'Restore ' + project.name"
+            >
+              @if (restoringProjectId() === project.id) {
+                Restoring…
+              } @else {
+                Restore
+              }
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
 </div>

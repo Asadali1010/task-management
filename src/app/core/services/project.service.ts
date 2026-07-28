@@ -4,10 +4,13 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
+  ArchiveProjectResponse,
   InviteMemberRequest,
   InviteMemberResponse,
   ProjectDetail,
+  ProjectListResponse,
   ProjectRole,
+  RestoreProjectResponse,
   UpdateMemberRoleRequest,
   UpdateMemberRoleResponse,
 } from '../models/project.models';
@@ -16,8 +19,29 @@ import {
 export class ProjectService {
   private readonly http = inject(HttpClient);
 
+  getProjects(options: { archived?: boolean } = {}): Observable<ProjectListResponse> {
+    const archived = options.archived ?? false;
+    return this.http.get<ProjectListResponse>(`${environment.apiUrl}/projects`, {
+      params: { archived: String(archived) },
+    });
+  }
+
   getProjectDetail(id: string): Observable<ProjectDetail> {
     return this.http.get<ProjectDetail>(`${environment.apiUrl}/projects/${id}`);
+  }
+
+  archiveProject(id: string): Observable<ArchiveProjectResponse> {
+    return this.http.post<ArchiveProjectResponse>(
+      `${environment.apiUrl}/projects/${id}/archive`,
+      {},
+    );
+  }
+
+  restoreProject(id: string): Observable<RestoreProjectResponse> {
+    return this.http.post<RestoreProjectResponse>(
+      `${environment.apiUrl}/projects/${id}/restore`,
+      {},
+    );
   }
 
   inviteMember(projectId: string, identifier: string): Observable<InviteMemberResponse> {

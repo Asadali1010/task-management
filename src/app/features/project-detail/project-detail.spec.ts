@@ -6,8 +6,10 @@ import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import {
+  ArchiveProjectResponse,
   InviteMemberResponse,
   ProjectDetail as ProjectDetailModel,
+  RestoreProjectResponse,
   UpdateMemberRoleResponse,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
@@ -20,6 +22,8 @@ describe('ProjectDetail', () => {
     inviteMember: ReturnType<typeof vi.fn>;
     removeMember: ReturnType<typeof vi.fn>;
     updateMemberRole: ReturnType<typeof vi.fn>;
+    archiveProject: ReturnType<typeof vi.fn>;
+    restoreProject: ReturnType<typeof vi.fn>;
   };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
@@ -31,6 +35,7 @@ describe('ProjectDetail', () => {
       status: 'active',
       createdAt: '2026-01-15T10:00:00Z',
       updatedAt: '2026-07-20T14:30:00Z',
+      archivedAt: null,
     },
     members: [
       {
@@ -71,6 +76,8 @@ describe('ProjectDetail', () => {
       inviteMember: vi.fn(),
       removeMember: vi.fn(),
       updateMemberRole: vi.fn(),
+      archiveProject: vi.fn(),
+      restoreProject: vi.fn(),
     };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
@@ -408,5 +415,190 @@ describe('ProjectDetail', () => {
     expect(alert?.textContent).toContain(
       'You do not have permission to manage members on this project.',
     );
+  });
+
+  it('should show Archive action for owner viewers on active projects', () => {
+    createComponentWithDetail();
+
+    const archiveButton = getCompiled().querySelector('.project-archive-btn') as HTMLButtonElement;
+    expect(archiveButton).toBeTruthy();
+    expect(archiveButton.textContent).toContain('Archive project');
+    expect(getCompiled().querySelector('.project-restore-btn')).toBeFalsy();
+    expect(getCompiled().querySelector('.project-archived-banner')).toBeFalsy();
+  });
+
+  it('should show Archive action for admin viewers on active projects', () => {
+    createComponentWithDetail({ ...mockProjectDetail, viewerRole: 'admin' });
+
+    const archiveButton = getCompiled().querySelector('.project-archive-btn') as HTMLButtonElement;
+    expect(archiveButton).toBeTruthy();
+    expect(archiveButton.textContent).toContain('Archive project');
+  });
+
+  it('should hide archive and restore actions for member viewers', () => {
+    createComponentWithDetail({ ...mockProjectDetail, viewerRole: 'member' });
+
+    expect(getCompiled().querySelector('.project-archive-btn')).toBeFalsy();
+    expect(getCompiled().querySelector('.project-restore-btn')).toBeFalsy();
+  });
+
+  it('should show archived banner and Restore action for archived projects', () => {
+    const archivedDetail: ProjectDetailModel = {
+      ...mockProjectDetail,
+      metadata: {
+        ...mockProjectDetail.metadata,
+        archivedAt: '2026-07-25T12:00:00Z',
+      },
+    };
+
+    createComponentWithDetail(archivedDetail);
+
+    const compiled = getCompiled();
+    expect(compiled.querySelector('.project-archived-banner')).toBeTruthy();
+    expect(compiled.querySelector('.project-archived-badge')?.textContent).toContain('Archived');
+    expect(compiled.textContent).toContain('This project is archived');
+
+    const restoreButton = compiled.querySelector('.project-restore-btn') as HTMLButtonElement;
+    expect(restoreButton).toBeTruthy();
+    expect(restoreButton.textContent).toContain('Restore project');
+    expect(compiled.querySelector('.project-archive-btn')).toBeFalsy();
+  });
+
+  it('should archive a project after confirmation and preserve members, activity, and metrics', () => {
+    const archiveResponse: ArchiveProjectResponse = {
+      project: {
+        id: 'proj-1',
+        name: 'Website Redesign',
+        description: 'Redesign the company website',
+        status: 'active',
+        createdAt: '2026-01-15T10:00:00Z',
+        updatedAt: '2026-07-28T10:00:00Z',
+        archivedAt: '2026-07-28T10:00:00Z',
+        viewerRole: 'owner',
+      },
+    };
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    createComponentWithDetail();
+    projectService.archiveProject.mockReturnValue(of(archiveResponse));
+
+    const archiveButton = getCompiled().querySelector('.project-archive-btn') as HTMLButtonElement;
+    archiveButton.click();
+    fixture.detectChanges();
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Archive this project? It will be hidden from the active project list. You can restore it later from Archived projects.',
+    );
+    expect(projectService.archiveProject).toHaveBeenCalledWith('proj-1');
+
+    const project = fixture.componentInstance['project']()!;
+    expect(project.metadata.archivedAt).toBe('2026-07-28T10:00:00Z');
+    expect(project.members).toEqual(mockProjectDetail.members);
+    expect(project.recentActivity).toEqual(mockProjectDetail.recentActivity);
+    expect(project.metrics).toEqual(mockProjectDetail.metrics);
+    expect(getCompiled().querySelector('.project-archived-banner')).toBeTruthy();
+    expect(getCompiled().querySelector('.project-restore-btn')).toBeTruthy();
+    expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+
+    confirmSpy.mockRestore();
+  });
+
+  it('should not archive when confirmation is cancelled', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    createComponentWithDetail();
+
+    const archiveButton = getCompiled().querySelector('.project-archive-btn') as HTMLButtonElement;
+    archiveButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.archiveProject).not.toHaveBeenCalled();
+    expect(fixture.componentInstance['project']()?.metadata.archivedAt).toBeNull();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('should restore an archived project and preserve members, activity, and metrics', () => {
+    const archivedDetail: ProjectDetailModel = {
+      ...mockProjectDetail,
+      metadata: {
+        ...mockProjectDetail.metadata,
+        archivedAt: '2026-07-25T12:00:00Z',
+      },
+    };
+    const restoreResponse: RestoreProjectResponse = {
+      project: {
+        id: 'proj-1',
+        name: 'Website Redesign',
+        description: 'Redesign the company website',
+        status: 'active',
+        createdAt: '2026-01-15T10:00:00Z',
+        updatedAt: '2026-07-28T11:00:00Z',
+        archivedAt: null,
+        viewerRole: 'owner',
+      },
+    };
+
+    createComponentWithDetail(archivedDetail);
+    projectService.restoreProject.mockReturnValue(of(restoreResponse));
+
+    const restoreButton = getCompiled().querySelector('.project-restore-btn') as HTMLButtonElement;
+    restoreButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.restoreProject).toHaveBeenCalledWith('proj-1');
+
+    const project = fixture.componentInstance['project']()!;
+    expect(project.metadata.archivedAt).toBeNull();
+    expect(project.members).toEqual(mockProjectDetail.members);
+    expect(project.recentActivity).toEqual(mockProjectDetail.recentActivity);
+    expect(project.metrics).toEqual(mockProjectDetail.metrics);
+    expect(getCompiled().querySelector('.project-archived-banner')).toBeFalsy();
+    expect(getCompiled().querySelector('.project-archive-btn')).toBeTruthy();
+    expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show permission error when archive is forbidden', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    createComponentWithDetail();
+    projectService.archiveProject.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 403 })),
+    );
+
+    const archiveButton = getCompiled().querySelector('.project-archive-btn') as HTMLButtonElement;
+    archiveButton.click();
+    fixture.detectChanges();
+
+    const alert = getCompiled().querySelector('.project-archive-restore-error');
+    expect(alert?.textContent).toContain(
+      'You do not have permission to archive this project.',
+    );
+    expect(fixture.componentInstance['project']()?.metadata.archivedAt).toBeNull();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('should show permission error when restore is forbidden', () => {
+    const archivedDetail: ProjectDetailModel = {
+      ...mockProjectDetail,
+      metadata: {
+        ...mockProjectDetail.metadata,
+        archivedAt: '2026-07-25T12:00:00Z',
+      },
+    };
+
+    createComponentWithDetail(archivedDetail);
+    projectService.restoreProject.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 403 })),
+    );
+
+    const restoreButton = getCompiled().querySelector('.project-restore-btn') as HTMLButtonElement;
+    restoreButton.click();
+    fixture.detectChanges();
+
+    const alert = getCompiled().querySelector('.project-archive-restore-error');
+    expect(alert?.textContent).toContain(
+      'You do not have permission to restore this project.',
+    );
+    expect(fixture.componentInstance['project']()?.metadata.archivedAt).toBe('2026-07-25T12:00:00Z');
   });
 });
