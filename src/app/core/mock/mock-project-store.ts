@@ -22,6 +22,7 @@ import {
   TaskTemplate,
   UpdateTaskRequest,
 } from '../models/project.models';
+import { isRichTextEmpty, normalizeRichTextValue } from '../utils/rich-text-sanitize';
 import { MockMilestoneRecord, MockProjectRecord, seedProjects } from './mock-data';
 
 const MAX_ANALYTICS_DAYS = 60;
@@ -69,13 +70,17 @@ function isProjectMember(record: MockProjectRecord, assigneeId: string): boolean
   return record.detail.members.some((member) => member.id === assigneeId);
 }
 
+function isNonEmptyDescription(value: unknown): value is string {
+  return typeof value === 'string' && !isRichTextEmpty(value);
+}
+
 function validateTaskFields(
   record: MockProjectRecord,
   fields: { title: unknown; description: unknown; assigneeId: unknown; dueDate: unknown },
 ): boolean {
   return (
     isNonEmptyString(fields.title) &&
-    isNonEmptyString(fields.description) &&
+    isNonEmptyDescription(fields.description) &&
     isNonEmptyString(fields.assigneeId) &&
     isProjectMember(record, fields.assigneeId) &&
     isValidDueDate(fields.dueDate)
@@ -553,7 +558,7 @@ export function createTask(projectId: string, request: CreateTaskRequest): TaskO
     status: request.status ?? 'open',
     milestoneId: request.milestoneId ?? null,
     parentTaskId: request.parentTaskId ?? null,
-    description: request.description.trim(),
+    description: normalizeRichTextValue(request.description),
     assigneeId: request.assigneeId,
     dueDate: request.dueDate,
     recurringRule: request.recurringRule ?? null,
@@ -614,7 +619,7 @@ export function updateTask(
   const updatedTask: Task = {
     ...existing,
     title: mergedFields.title.trim(),
-    description: (mergedFields.description ?? '').trim(),
+    description: normalizeRichTextValue(mergedFields.description ?? ''),
     assigneeId: mergedFields.assigneeId,
     dueDate: mergedFields.dueDate ?? null,
     ...(request.status !== undefined ? { status: request.status } : {}),

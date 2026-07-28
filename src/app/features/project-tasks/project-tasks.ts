@@ -2,10 +2,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
+import { isRichTextEmpty, sanitizeRichTextHtml } from '../../core/utils/rich-text-sanitize';
+import { RichTextEditor } from '../../shared/rich-text-editor/rich-text-editor';
 import {
   ProjectMember,
   Task,
@@ -22,9 +25,12 @@ interface FlatTaskRow {
   depth: number;
 }
 
+const richTextRequired: ValidatorFn = (control): ValidationErrors | null =>
+  isRichTextEmpty(control.value) ? { required: true } : null;
+
 @Component({
   selector: 'app-project-tasks',
-  imports: [RouterLink, DatePipe, ReactiveFormsModule],
+  imports: [RouterLink, DatePipe, ReactiveFormsModule, RichTextEditor],
   templateUrl: './project-tasks.html',
   styleUrl: './project-tasks.css',
 })
@@ -33,6 +39,7 @@ export class ProjectTasks implements OnInit {
   private readonly projectService = inject(ProjectService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
+  private readonly sanitizer = inject(DomSanitizer);
 
   protected readonly isLoading = signal(true);
   protected readonly errorMessage = signal<string | null>(null);
@@ -65,7 +72,7 @@ export class ProjectTasks implements OnInit {
 
   protected readonly createForm = this.fb.nonNullable.group({
     title: ['', Validators.required],
-    description: ['', Validators.required],
+    description: ['', richTextRequired],
     assigneeId: ['', Validators.required],
     dueDate: ['', Validators.required],
     status: ['open' as TaskStatus],
@@ -76,7 +83,7 @@ export class ProjectTasks implements OnInit {
 
   protected readonly editForm = this.fb.nonNullable.group({
     title: ['', Validators.required],
-    description: ['', Validators.required],
+    description: ['', richTextRequired],
     assigneeId: ['', Validators.required],
     dueDate: ['', Validators.required],
     status: ['open' as TaskStatus],
@@ -446,6 +453,14 @@ export class ProjectTasks implements OnInit {
 
   protected formatHistoryAction(action: TaskHistoryEntry['action']): string {
     return action.replace(/_/g, ' ');
+  }
+
+  protected hasTaskDescription(description: string | null | undefined): boolean {
+    return !isRichTextEmpty(description);
+  }
+
+  protected getTaskDescriptionHtml(description: string): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(sanitizeRichTextHtml(description));
   }
 
   protected getCreateHeading(): string {
