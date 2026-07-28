@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 import {
   ArchiveProjectResponse,
   InviteMemberResponse,
+  ProjectAnalytics,
   ProjectDetail,
   ProjectListResponse,
   ProjectSummary,
@@ -173,6 +174,45 @@ describe('ProjectService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1`);
     expect(req.request.method).toBe('GET');
     req.flush(mockProjectDetail);
+  });
+
+  const mockProjectAnalytics: ProjectAnalytics = {
+    summary: {
+      totalTasks: 24,
+      completedTasks: 18,
+      openTasks: 6,
+      overdueTasks: 2,
+      memberCount: 2,
+    },
+    timeSeries: [
+      { date: '2026-07-01', completed: 2, created: 3 },
+      { date: '2026-07-02', completed: 4, created: 1 },
+    ],
+    statusBreakdown: [
+      { status: 'done', count: 18 },
+      { status: 'in_progress', count: 4 },
+      { status: 'todo', count: 2 },
+    ],
+  };
+
+  it('should fetch project analytics with ISO date range params', () => {
+    const from = '2026-07-01T00:00:00.000Z';
+    const to = '2026-07-28T23:59:59.999Z';
+
+    service.getProjectAnalytics('proj-1', { from, to }).subscribe((analytics) => {
+      expect(analytics.summary).toEqual(mockProjectAnalytics.summary);
+      expect(analytics.timeSeries).toEqual(mockProjectAnalytics.timeSeries);
+      expect(analytics.statusBreakdown).toEqual(mockProjectAnalytics.statusBreakdown);
+    });
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${environment.apiUrl}/projects/proj-1/analytics` &&
+        request.params.get('from') === from &&
+        request.params.get('to') === to,
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(mockProjectAnalytics);
   });
 
   it('should invite a member by identifier', () => {

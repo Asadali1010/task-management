@@ -241,30 +241,13 @@
         }
       </section>
 
-      <section class="project-panel project-metrics" aria-labelledby="metrics-heading">
-        <h2 id="metrics-heading" class="project-panel-heading">Key metrics</h2>
-        <dl class="metrics-grid">
-          <div class="metric-item">
-            <dt>Total tasks</dt>
-            <dd>{{ detail.metrics.totalTasks }}</dd>
-          </div>
-          <div class="metric-item">
-            <dt>Completed</dt>
-            <dd>{{ detail.metrics.completedTasks }}</dd>
-          </div>
-          <div class="metric-item">
-            <dt>Open</dt>
-            <dd>{{ detail.metrics.openTasks }}</dd>
-          </div>
-          <div class="metric-item">
-            <dt>Overdue</dt>
-            <dd>{{ detail.metrics.overdueTasks }}</dd>
-          </div>
-          <div class="metric-item">
-            <dt>Members</dt>
-            <dd>{{ detail.metrics.memberCount }}</dd>
-          </div>
-        </dl>
+      <section class="project-panel project-metrics">
+        <app-project-analytics
+          [embedded]="true"
+          [projectIdInput]="projectId()"
+          [refreshTrigger]="analyticsRefreshTrigger()"
+          [pollIntervalMs]="analyticsPollIntervalMs"
+        />
       </section>
     </div>
   }

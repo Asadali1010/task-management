@@ -1,0 +1,243 @@
+<div [class.project-analytics-page]="!embedded()" [class.analytics-embedded-panel]="embedded()">
+  @if (isLoading() && !analytics()) {
+    <div class="analytics-state" role="status" aria-live="polite">
+      <p class="analytics-state-message">Loading project analytics…</p>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="analytics-state analytics-state-error" role="alert">
+      @if (!embedded()) {
+        <h1 class="analytics-state-heading">Something went wrong</h1>
+      }
+      <p class="analytics-state-message">{{ errorMessage() }}</p>
+      @if (projectId() || projectIdInput()) {
+        <button type="button" class="analytics-retry-btn" (click)="retryLoad()">Try again</button>
+      }
+    </div>
+  } @else if (analytics(); as data) {
+    @if (!embedded()) {
+      <header class="analytics-header" aria-labelledby="analytics-heading">
+        <div class="analytics-header-main">
+          <p class="analytics-eyebrow">Project analytics</p>
+          <h1 id="analytics-heading" class="analytics-title">Performance overview</h1>
+          <p class="analytics-description">
+            Track task completion and status distribution for the selected date range.
+          </p>
+        </div>
+        <nav class="analytics-nav" aria-label="Project sections">
+          <a class="analytics-nav-link" [routerLink]="['/projects', projectId()]">Overview</a>
+          <a
+            class="analytics-nav-link analytics-nav-link-active"
+            [routerLink]="['/projects', projectId(), 'analytics']"
+            aria-current="page"
+          >
+            Analytics
+          </a>
+        </nav>
+      </header>
+    }
+
+    <section class="analytics-panel analytics-filters" aria-labelledby="filters-heading">
+      <h2 id="filters-heading" class="analytics-panel-heading">
+        @if (embedded()) {
+          Key metrics
+        } @else {
+          Date range
+        }
+      </h2>
+      <form class="analytics-date-form" [formGroup]="dateRangeForm" novalidate>
+        <div class="analytics-date-field">
+          <label for="analytics-from" class="analytics-date-label">From</label>
+          <input
+            id="analytics-from"
+            type="date"
+            class="analytics-date-input"
+            formControlName="from"
+            [attr.max]="dateRangeForm.controls.to.value"
+          />
+        </div>
+        <div class="analytics-date-field">
+          <label for="analytics-to" class="analytics-date-label">To</label>
+          <input
+            id="analytics-to"
+            type="date"
+            class="analytics-date-input"
+            formControlName="to"
+            [attr.min]="dateRangeForm.controls.from.value"
+          />
+        </div>
+      </form>
+    </section>
+
+    <section class="analytics-panel analytics-summary" aria-labelledby="summary-heading">
+      <h2 id="summary-heading" class="analytics-panel-heading">
+        @if (embedded()) {
+          Summary
+        } @else {
+          Summary metrics
+        }
+      </h2>
+      <dl class="analytics-metrics-grid">
+        <div class="analytics-metric-item">
+          <dt>Total tasks</dt>
+          <dd>{{ data.summary.totalTasks }}</dd>
+        </div>
+        <div class="analytics-metric-item">
+          <dt>Completed</dt>
+          <dd>{{ data.summary.completedTasks }}</dd>
+        </div>
+        <div class="analytics-metric-item">
+          <dt>Open</dt>
+          <dd>{{ data.summary.openTasks }}</dd>
+        </div>
+        <div class="analytics-metric-item">
+          <dt>Overdue</dt>
+          <dd>{{ data.summary.overdueTasks }}</dd>
+        </div>
+        <div class="analytics-metric-item">
+          <dt>Members</dt>
+          <dd>{{ data.summary.memberCount }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    @if (!hasChartData()) {
+      <section class="analytics-panel analytics-empty-panel" aria-labelledby="empty-heading">
+        <h2 id="empty-heading" class="analytics-panel-heading">Charts</h2>
+        <p class="analytics-empty">
+          No task activity in this date range. Adjust the dates above or check back after work begins.
+        </p>
+      </section>
+    } @else {
+      <div class="analytics-charts-grid">
+        <section
+          class="analytics-panel analytics-chart-panel"
+          aria-labelledby="completion-trend-heading"
+        >
+          <h2 id="completion-trend-heading" class="analytics-panel-heading">Completion trend</h2>
+          @if (completionTrendPoints().length === 0) {
+            <p class="analytics-empty">No completions recorded in this date range.</p>
+          } @else {
+            <figure class="analytics-chart-figure">
+              <svg
+                class="analytics-line-chart"
+                viewBox="0 0 360 160"
+                role="img"
+                aria-labelledby="completion-trend-title completion-trend-desc"
+              >
+                <title id="completion-trend-title">Task completion trend</title>
+                <desc id="completion-trend-desc">{{ getCompletionTrendDescription() }}</desc>
+                <line
+                  class="analytics-chart-axis"
+                  x1="16"
+                  y1="144"
+                  x2="344"
+                  y2="144"
+                  aria-hidden="true"
+                />
+                <path
+                  class="analytics-chart-line"
+                  [attr.d]="completionTrendLine()"
+                  fill="none"
+                  aria-hidden="true"
+                />
+                @for (point of completionTrendPoints(); track point.date) {
+                  <circle
+                    class="analytics-chart-point"
+                    [attr.cx]="point.x"
+                    [attr.cy]="point.y"
+                    r="4"
+                    aria-hidden="true"
+                  />
+                }
+              </svg>
+              <figcaption class="analytics-chart-caption">
+                Completed tasks per day in the selected range.
+              </figcaption>
+              <table class="analytics-chart-table visually-hidden">
+                <caption>
+                  Completion trend data
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Completed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (point of completionTrendPoints(); track point.date) {
+                    <tr>
+                      <td>{{ point.date | date: 'mediumDate' }}</td>
+                      <td>{{ point.completed }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </figure>
+          }
+        </section>
+
+        <section
+          class="analytics-panel analytics-chart-panel"
+          aria-labelledby="status-breakdown-heading"
+        >
+          <h2 id="status-breakdown-heading" class="analytics-panel-heading">Status breakdown</h2>
+          @if (statusBreakdownBars().length === 0) {
+            <p class="analytics-empty">No status data for this date range.</p>
+          } @else {
+            <figure class="analytics-chart-figure">
+              <div
+                class="analytics-bar-chart"
+                role="img"
+                aria-labelledby="status-breakdown-title status-breakdown-desc"
+              >
+                <p id="status-breakdown-title" class="visually-hidden">Task status breakdown</p>
+                <p id="status-breakdown-desc" class="visually-hidden">
+                  {{ getStatusBreakdownDescription() }}
+                </p>
+                <ul class="analytics-bar-list">
+                  @for (bar of statusBreakdownBars(); track bar.status) {
+                    <li class="analytics-bar-item">
+                      <div class="analytics-bar-label-row">
+                        <span class="analytics-bar-label">{{ bar.label }}</span>
+                        <span class="analytics-bar-value">{{ bar.count }}</span>
+                      </div>
+                      <div class="analytics-bar-track" aria-hidden="true">
+                        <div
+                          class="analytics-bar-fill"
+                          [style.width.%]="bar.widthPercent"
+                          [style.background-color]="bar.color"
+                        ></div>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+              <figcaption class="analytics-chart-caption">
+                Task counts grouped by current status.
+              </figcaption>
+              <table class="analytics-chart-table visually-hidden">
+                <caption>
+                  Status breakdown data
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Status</th>
+                    <th scope="col">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (bar of statusBreakdownBars(); track bar.status) {
+                    <tr>
+                      <td>{{ bar.label }}</td>
+                      <td>{{ bar.count }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </figure>
+          }
+        </section>
+      </div>
+    }
+  }
+</div>
