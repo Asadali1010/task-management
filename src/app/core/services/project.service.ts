@@ -7,6 +7,9 @@ import {
   InviteMemberRequest,
   InviteMemberResponse,
   ProjectDetail,
+  ProjectRole,
+  UpdateMemberRoleRequest,
+  UpdateMemberRoleResponse,
 } from '../models/project.models';
 
 @Injectable({ providedIn: 'root' })
@@ -28,6 +31,18 @@ export class ProjectService {
   removeMember(projectId: string, memberId: string): Observable<void> {
     return this.http.delete<void>(
       `${environment.apiUrl}/projects/${projectId}/members/${memberId}`,
+    );
+  }
+
+  updateMemberRole(
+    projectId: string,
+    memberId: string,
+    role: ProjectRole,
+  ): Observable<UpdateMemberRoleResponse> {
+    const body: UpdateMemberRoleRequest = { role };
+    return this.http.patch<UpdateMemberRoleResponse>(
+      `${environment.apiUrl}/projects/${projectId}/members/${memberId}/role`,
+      body,
     );
   }
 }

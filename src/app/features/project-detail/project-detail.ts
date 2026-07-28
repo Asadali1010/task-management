@@ -5,9 +5,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
+import { ASSIGNABLE_ROLES, hasPermission } from '../../core/constants/project-role.permissions';
 import {
   ProjectDetail as ProjectDetailModel,
   ProjectMember,
+  ProjectRole,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
 
@@ -31,6 +33,7 @@ export class ProjectDetail implements OnInit {
   protected readonly inviteSuccessMessage = signal<string | null>(null);
   protected readonly isInviting = signal(false);
   protected readonly removingMemberId = signal<string | null>(null);
+  protected readonly updatingMemberRoleId = signal<string | null>(null);
 
   protected readonly inviteForm = this.fb.nonNullable.group({
     identifier: ['', Validators.required],
@@ -76,6 +79,50 @@ export class ProjectDetail implements OnInit {
 
   protected canRemoveMember(member: ProjectMember): boolean {
     return member.role !== 'owner';
+  }
+
+  protected canChangeMemberRole(detail: ProjectDetailModel, member: ProjectMember): boolean {
+    return hasPermission(detail.viewerRole, 'changeRoles') && member.role !== 'owner';
+  }
+
+  protected getRoleOptions(detail: ProjectDetailModel, member: ProjectMember): ProjectRole[] {
+    const assignable = [...ASSIGNABLE_ROLES[detail.viewerRole]];
+    if (!assignable.includes(member.role)) {
+      return [member.role, ...assignable];
+    }
+    return assignable;
+  }
+
+  protected formatRole(role: ProjectRole): string {
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  }
+
+  protected onRoleChange(memberId: string, newRole: ProjectRole): void {
+    if (this.updatingMemberRoleId()) {
+      return;
+    }
+
+    const currentMember = this.project()?.members.find((member) => member.id === memberId);
+    if (!currentMember || currentMember.role === newRole) {
+      return;
+    }
+
+    this.updatingMemberRoleId.set(memberId);
+    this.memberActionError.set(null);
+    this.inviteSuccessMessage.set(null);
+
+    this.projectService.updateMemberRole(this.projectId(), memberId, newRole).subscribe({
+      next: (response) => {
+        this.updatingMemberRoleId.set(null);
+        this.updateProjectMembers((members) =>
+          members.map((member) => (member.id === memberId ? response.member : member)),
+        );
+      },
+      error: (error) => {
+        this.updatingMemberRoleId.set(null);
+        this.memberActionError.set(this.getMemberActionErrorMessage(error, 'roleChange'));
+      },
+    });
   }
 
   protected onInviteSubmit(): void {
@@ -159,11 +206,18 @@ export class ProjectDetail implements OnInit {
     });
   }
 
-  private getMemberActionErrorMessage(error: unknown, action: 'invite' | 'remove'): string {
+  private getMemberActionErrorMessage(
+    error: unknown,
+    action: 'invite' | 'remove' | 'roleChange',
+  ): string {
     if (!(error instanceof HttpErrorResponse)) {
-      return action === 'invite'
-        ? 'Unable to send invite. Try again in a moment.'
-        : 'Unable to remove member. Try again in a moment.';
+      if (action === 'invite') {
+        return 'Unable to send invite. Try again in a moment.';
+      }
+      if (action === 'roleChange') {
+        return 'Unable to change role. Try again in a moment.';
+      }
+      return 'Unable to remove member. Try again in a moment.';
     }
 
     if (error.status === 403) {
@@ -192,9 +246,13 @@ export class ProjectDetail implements OnInit {
       return apiMessage;
     }
 
-    return action === 'invite'
-      ? 'Unable to send invite. Check the details and try again.'
-      : 'Unable to remove member. Try again in a moment.';
+    if (action === 'invite') {
+      return 'Unable to send invite. Check the details and try again.';
+    }
+    if (action === 'roleChange') {
+      return 'Unable to change role. Try again in a moment.';
+    }
+    return 'Unable to remove member. Try again in a moment.';
   }
 
   private loadProject(id: string): void {

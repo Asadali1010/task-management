@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import {
   InviteMemberResponse,
   ProjectDetail as ProjectDetailModel,
+  UpdateMemberRoleResponse,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
 import { ProjectDetail } from './project-detail';
@@ -18,6 +19,7 @@ describe('ProjectDetail', () => {
     getProjectDetail: ReturnType<typeof vi.fn>;
     inviteMember: ReturnType<typeof vi.fn>;
     removeMember: ReturnType<typeof vi.fn>;
+    updateMemberRole: ReturnType<typeof vi.fn>;
   };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
@@ -68,6 +70,7 @@ describe('ProjectDetail', () => {
       getProjectDetail: vi.fn(),
       inviteMember: vi.fn(),
       removeMember: vi.fn(),
+      updateMemberRole: vi.fn(),
     };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
@@ -112,6 +115,14 @@ describe('ProjectDetail', () => {
     createComponent();
   }
 
+  function getRoleSelectForMember(memberId: string): HTMLSelectElement | null {
+    return getCompiled().querySelector(`#member-role-${memberId}`) as HTMLSelectElement | null;
+  }
+
+  function getRoleSelectOptions(select: HTMLSelectElement): string[] {
+    return Array.from(select.options).map((option) => option.value);
+  }
+
   it('should create', () => {
     createComponentWithDetail();
     expect(fixture.componentInstance).toBeTruthy();
@@ -147,9 +158,9 @@ describe('ProjectDetail', () => {
 
     expect(compiled.querySelector('#members-heading')?.textContent).toContain('Team members');
     expect(compiled.textContent).toContain('Jane Doe');
-    expect(compiled.textContent).toContain('owner');
+    expect(compiled.textContent).toContain('Owner');
     expect(compiled.textContent).toContain('John Smith');
-    expect(compiled.textContent).toContain('member');
+    expect(compiled.textContent).toContain('Member');
 
     expect(compiled.querySelector('#activity-heading')?.textContent).toContain('Recent activity');
     expect(compiled.textContent).toContain('Completed task "Update homepage hero"');
@@ -244,8 +255,11 @@ describe('ProjectDetail', () => {
     const compiled = getCompiled();
     expect(compiled.querySelector('.member-invite-form')).toBeFalsy();
     expect(compiled.querySelector('.member-remove-btn')).toBeFalsy();
+    expect(compiled.querySelector('.member-role-select')).toBeFalsy();
     expect(compiled.textContent).toContain('Jane Doe');
     expect(compiled.textContent).toContain('John Smith');
+    expect(compiled.textContent).toContain('Owner');
+    expect(compiled.textContent).toContain('Member');
   });
 
   it('should invite a member and update the list without reloading the page', () => {
@@ -313,5 +327,86 @@ describe('ProjectDetail', () => {
 
     const alert = getCompiled().querySelector('.member-action-error');
     expect(alert?.textContent).toContain('Member not found. Refresh the page and try again.');
+  });
+
+  it('should change a member role and update the list immediately', () => {
+    const updateResponse: UpdateMemberRoleResponse = {
+      member: {
+        id: 'user-2',
+        name: 'John Smith',
+        email: 'john@example.com',
+        role: 'admin',
+      },
+    };
+
+    createComponentWithDetail();
+    projectService.updateMemberRole.mockReturnValue(of(updateResponse));
+
+    const roleSelect = getRoleSelectForMember('user-2')!;
+    expect(roleSelect).toBeTruthy();
+    expect(getRoleSelectOptions(roleSelect)).toEqual(['admin', 'member']);
+
+    roleSelect.value = 'admin';
+    roleSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(projectService.updateMemberRole).toHaveBeenCalledWith('proj-1', 'user-2', 'admin');
+    expect(fixture.componentInstance['project']()?.members.find((m) => m.id === 'user-2')?.role).toBe(
+      'admin',
+    );
+    expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('should keep owner rows read-only for owner viewers', () => {
+    createComponentWithDetail();
+
+    expect(getRoleSelectForMember('user-1')).toBeFalsy();
+    expect(getCompiled().textContent).toContain('Owner');
+  });
+
+  it('should limit assignable roles for admin viewers to prevent escalation', () => {
+    const adminViewerDetail: ProjectDetailModel = {
+      ...mockProjectDetail,
+      viewerRole: 'admin',
+      members: [
+        ...mockProjectDetail.members,
+        {
+          id: 'user-3',
+          name: 'Alex Admin',
+          email: 'alex@example.com',
+          role: 'admin',
+        },
+      ],
+      metrics: {
+        ...mockProjectDetail.metrics,
+        memberCount: 3,
+      },
+    };
+
+    createComponentWithDetail(adminViewerDetail);
+
+    const memberSelect = getRoleSelectForMember('user-2')!;
+    expect(getRoleSelectOptions(memberSelect)).toEqual(['member']);
+
+    const adminSelect = getRoleSelectForMember('user-3')!;
+    expect(getRoleSelectOptions(adminSelect)).toEqual(['admin', 'member']);
+    expect(getRoleSelectOptions(adminSelect)).not.toContain('owner');
+  });
+
+  it('should show actionable error when role change is forbidden', () => {
+    createComponentWithDetail();
+    projectService.updateMemberRole.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 403 })),
+    );
+
+    const roleSelect = getRoleSelectForMember('user-2')!;
+    roleSelect.value = 'admin';
+    roleSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const alert = getCompiled().querySelector('.member-action-error');
+    expect(alert?.textContent).toContain(
+      'You do not have permission to manage members on this project.',
+    );
   });
 });

@@ -431,7 +431,41 @@
 .member-role {
   font-size: var(--pd-fs-sm);
   color: var(--pd-muted);
-  text-transform: capitalize;
+}
+
+.member-role-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.member-role-select {
+  width: fit-content;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: var(--pd-fs-sm);
+  color: var(--pd-text);
+  background: var(--pd-surface);
+  border: 1px solid var(--pd-border);
+  border-radius: var(--pd-r-sm);
+  cursor: pointer;
+}
+
+.member-role-select:focus-visible {
+  outline: 2px solid var(--pd-primary);
+  outline-offset: 2px;
+}
+
+.member-role-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .activity-feed {
