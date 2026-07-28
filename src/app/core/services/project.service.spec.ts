@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 
 import { environment } from '../../../environments/environment';
-import { ProjectDetail } from '../models/project.models';
+import { InviteMemberResponse, ProjectDetail } from '../models/project.models';
 import { ProjectService } from './project.service';
 
 describe('ProjectService', () => {
@@ -49,6 +49,16 @@ describe('ProjectService', () => {
       overdueTasks: 2,
       memberCount: 2,
     },
+    viewerRole: 'owner',
+  };
+
+  const mockInviteResponse: InviteMemberResponse = {
+    member: {
+      id: 'user-3',
+      name: 'Alex Rivera',
+      email: 'alex@example.com',
+      role: 'member',
+    },
   };
 
   beforeEach(() => {
@@ -72,5 +82,30 @@ describe('ProjectService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1`);
     expect(req.request.method).toBe('GET');
     req.flush(mockProjectDetail);
+  });
+
+  it('should invite a member by identifier', () => {
+    service.inviteMember('proj-1', 'alex@example.com').subscribe((response) => {
+      expect(response).toEqual(mockInviteResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/members/invite`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ identifier: 'alex@example.com' });
+    req.flush(mockInviteResponse);
+  });
+
+  it('should remove a member by id', () => {
+    let completed = false;
+    service.removeMember('proj-1', 'user-2').subscribe({
+      next: () => {
+        completed = true;
+      },
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/members/user-2`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    expect(completed).toBe(true);
   });
 });

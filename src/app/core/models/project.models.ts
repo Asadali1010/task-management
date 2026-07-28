@@ -36,4 +36,13 @@ export interface ProjectDetail {
   members: ProjectMember[];
   recentActivity: ProjectActivity[];
   metrics: ProjectMetrics;
+  viewerRole: string;
+}
+
+export interface InviteMemberRequest {
+  identifier: string;
+}
+
+export interface InviteMemberResponse {
+  member: ProjectMember;
 }
