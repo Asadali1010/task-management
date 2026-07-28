@@ -7,6 +7,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
 import {
+  ProjectMember,
   Task,
   TaskDependency,
   TaskHierarchyNode,
@@ -52,6 +53,11 @@ export class ProjectTasks implements OnInit {
   protected readonly isBulkActing = signal(false);
   protected readonly actingTaskId = signal<string | null>(null);
   protected readonly duplicateIncludeSubtasks = signal(false);
+  protected readonly projectMembers = signal<ProjectMember[]>([]);
+  protected readonly deletedTasks = signal<Task[]>([]);
+  protected readonly restoringTaskId = signal<string | null>(null);
+
+  protected readonly deletedTaskGracePeriodDays = 30;
 
   protected readonly flatRows = computed(() => this.flattenHierarchy(this.taskHierarchy()));
   protected readonly selectedCount = computed(() => this.selectedTaskIds().size);
@@ -59,8 +65,9 @@ export class ProjectTasks implements OnInit {
 
   protected readonly createForm = this.fb.nonNullable.group({
     title: ['', Validators.required],
-    description: [''],
-    dueDate: [''],
+    description: ['', Validators.required],
+    assigneeId: ['', Validators.required],
+    dueDate: ['', Validators.required],
     status: ['open' as TaskStatus],
     recurringEnabled: [false],
     recurringFrequency: ['weekly' as 'daily' | 'weekly' | 'monthly'],
@@ -69,8 +76,9 @@ export class ProjectTasks implements OnInit {
 
   protected readonly editForm = this.fb.nonNullable.group({
     title: ['', Validators.required],
-    description: [''],
-    dueDate: [''],
+    description: ['', Validators.required],
+    assigneeId: ['', Validators.required],
+    dueDate: ['', Validators.required],
     status: ['open' as TaskStatus],
   });
 
@@ -119,8 +127,9 @@ export class ProjectTasks implements OnInit {
     this.projectService
       .createTask(projectId, {
         title: raw.title,
-        description: raw.description || undefined,
-        dueDate: raw.dueDate ? this.toIsoDueDate(raw.dueDate) : null,
+        description: raw.description,
+        assigneeId: raw.assigneeId,
+        dueDate: this.toIsoDueDate(raw.dueDate),
         status: raw.status,
         parentTaskId,
         recurringRule: raw.recurringEnabled
@@ -138,6 +147,7 @@ export class ProjectTasks implements OnInit {
           this.createForm.reset({
             title: '',
             description: '',
+            assigneeId: '',
             dueDate: '',
             status: 'open',
             recurringEnabled: false,
@@ -157,7 +167,13 @@ export class ProjectTasks implements OnInit {
     this.subtaskParentId.set(parentId);
     this.editingTaskId.set(null);
     this.historyTaskId.set(null);
-    this.createForm.patchValue({ title: '', description: '', dueDate: '', status: 'open' });
+    this.createForm.patchValue({
+      title: '',
+      description: '',
+      assigneeId: '',
+      dueDate: '',
+      status: 'open',
+    });
   }
 
   protected cancelSubtask(): void {
@@ -171,6 +187,7 @@ export class ProjectTasks implements OnInit {
     this.editForm.patchValue({
       title: task.title,
       description: task.description ?? '',
+      assigneeId: task.assigneeId,
       dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
       status: task.status,
     });
@@ -200,7 +217,8 @@ export class ProjectTasks implements OnInit {
       .updateTask(projectId, taskId, {
         title: raw.title,
         description: raw.description,
-        dueDate: raw.dueDate ? this.toIsoDueDate(raw.dueDate) : null,
+        assigneeId: raw.assigneeId,
+        dueDate: this.toIsoDueDate(raw.dueDate),
         status: raw.status,
       })
       .subscribe({
@@ -400,6 +418,32 @@ export class ProjectTasks implements OnInit {
     return status === 'done' ? 'Done' : 'Open';
   }
 
+  protected getAssigneeName(assigneeId: string): string {
+    const member = this.projectMembers().find((entry) => entry.id === assigneeId);
+    return member?.name ?? 'Unknown assignee';
+  }
+
+  protected restoreDeletedTask(taskId: string): void {
+    const projectId = this.projectId();
+    if (!projectId || this.restoringTaskId()) {
+      return;
+    }
+
+    this.restoringTaskId.set(taskId);
+    this.actionError.set(null);
+
+    this.projectService.restoreTask(projectId, taskId).subscribe({
+      next: () => {
+        this.restoringTaskId.set(null);
+        this.reloadTasks(projectId);
+      },
+      error: () => {
+        this.restoringTaskId.set(null);
+        this.actionError.set('Unable to restore task. Try again in a moment.');
+      },
+    });
+  }
+
   protected formatHistoryAction(action: TaskHistoryEntry['action']): string {
     return action.replace(/_/g, ' ');
   }
@@ -450,16 +494,20 @@ export class ProjectTasks implements OnInit {
     this.selectedTaskIds.set(new Set());
 
     forkJoin({
+      detail: this.projectService.getProjectDetail(projectId),
       hierarchy: this.projectService.getTaskHierarchy(projectId),
       flat: this.projectService.listTasks(projectId),
       templates: this.projectService.listTaskTemplates(projectId),
       dependencies: this.projectService.listTaskDependencies(projectId),
+      deleted: this.projectService.listDeletedTasks(projectId),
     }).subscribe({
-      next: ({ hierarchy, flat, templates, dependencies }) => {
+      next: ({ detail, hierarchy, flat, templates, dependencies, deleted }) => {
+        this.projectMembers.set(detail.members);
         this.taskHierarchy.set(hierarchy.tasks);
         this.flatTasks.set(flat.tasks);
         this.templates.set(templates.templates);
         this.dependencies.set(dependencies.dependencies);
+        this.deletedTasks.set(deleted.tasks);
         this.isLoading.set(false);
         this.errorMessage.set(null);
       },
@@ -475,11 +523,13 @@ export class ProjectTasks implements OnInit {
       hierarchy: this.projectService.getTaskHierarchy(projectId),
       flat: this.projectService.listTasks(projectId),
       dependencies: this.projectService.listTaskDependencies(projectId),
+      deleted: this.projectService.listDeletedTasks(projectId),
     }).subscribe({
-      next: ({ hierarchy, flat, dependencies }) => {
+      next: ({ hierarchy, flat, dependencies, deleted }) => {
         this.taskHierarchy.set(hierarchy.tasks);
         this.flatTasks.set(flat.tasks);
         this.dependencies.set(dependencies.dependencies);
+        this.deletedTasks.set(deleted.tasks);
       },
     });
   }

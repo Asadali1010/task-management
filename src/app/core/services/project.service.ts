@@ -241,4 +241,17 @@ export class ProjectService {
       body,
     );
   }
+
+  listDeletedTasks(projectId: string): Observable<TaskListResponse> {
+    return this.http.get<TaskListResponse>(
+      `${environment.apiUrl}/projects/${projectId}/tasks/deleted`,
+    );
+  }
+
+  restoreTask(projectId: string, taskId: string): Observable<Task> {
+    return this.http.post<Task>(
+      `${environment.apiUrl}/projects/${projectId}/tasks/${taskId}/restore`,
+      {},
+    );
+  }
 }

@@ -43,25 +43,32 @@ function task(
   status: TaskStatus,
   milestoneId: string | null = null,
   options: {
+    assigneeId: string;
     parentTaskId?: string | null;
     description?: string;
     dueDate?: string | null;
     recurringRule?: Task['recurringRule'];
-  } = {},
+    deletedAt?: string | null;
+  },
 ): Task {
-  const result: Task = { id, title, status, milestoneId };
+  const result: Task = {
+    id,
+    title,
+    status,
+    milestoneId,
+    assigneeId: options.assigneeId,
+    description: options.description ?? '',
+    dueDate: options.dueDate ?? daysFromNowIso(14),
+  };
 
   if (options.parentTaskId !== undefined) {
     result.parentTaskId = options.parentTaskId;
   }
-  if (options.description !== undefined) {
-    result.description = options.description;
-  }
-  if (options.dueDate !== undefined) {
-    result.dueDate = options.dueDate;
-  }
   if (options.recurringRule !== undefined) {
     result.recurringRule = options.recurringRule;
+  }
+  if (options.deletedAt !== undefined) {
+    result.deletedAt = options.deletedAt;
   }
 
   return result;
@@ -183,14 +190,48 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       24,
     ),
     tasks: [
-      task('task-1', 'Update homepage hero', 'done', 'ms-1'),
-      task('task-2', 'Implement responsive navigation', 'done', 'ms-1'),
-      task('task-3', 'Write launch blog post', 'open', 'ms-1'),
-      task('task-3a', 'Draft blog outline', 'done', 'ms-1', { parentTaskId: 'task-3' }),
-      task('task-3b', 'Review blog draft', 'open', 'ms-1', { parentTaskId: 'task-3' }),
-      task('task-4', 'Migrate legacy blog content', 'done', 'ms-2'),
-      task('task-5', 'Redirect old URLs', 'open', 'ms-2'),
-      task('task-6', 'Audit accessibility', 'open', null),
+      task('task-1', 'Update homepage hero', 'done', 'ms-1', {
+        assigneeId: 'mem-1',
+        description: 'Refresh the homepage hero section with new brand assets.',
+        dueDate: daysAgoIso(7),
+      }),
+      task('task-2', 'Implement responsive navigation', 'done', 'ms-1', {
+        assigneeId: 'mem-2',
+        description: 'Build a mobile-first navigation component.',
+        dueDate: daysAgoIso(3),
+      }),
+      task('task-3', 'Write launch blog post', 'open', 'ms-1', {
+        assigneeId: 'mem-3',
+        description: 'Draft and publish the product launch announcement.',
+        dueDate: daysFromNowIso(10),
+      }),
+      task('task-3a', 'Draft blog outline', 'done', 'ms-1', {
+        assigneeId: 'mem-3',
+        parentTaskId: 'task-3',
+        description: 'Outline key sections for the launch blog post.',
+        dueDate: daysAgoIso(2),
+      }),
+      task('task-3b', 'Review blog draft', 'open', 'ms-1', {
+        assigneeId: 'mem-2',
+        parentTaskId: 'task-3',
+        description: 'Review and approve the blog post draft.',
+        dueDate: daysFromNowIso(5),
+      }),
+      task('task-4', 'Migrate legacy blog content', 'done', 'ms-2', {
+        assigneeId: 'mem-1',
+        description: 'Move archived blog posts to the new CMS.',
+        dueDate: daysAgoIso(15),
+      }),
+      task('task-5', 'Redirect old URLs', 'open', 'ms-2', {
+        assigneeId: 'mem-2',
+        description: 'Configure 301 redirects for legacy blog URLs.',
+        dueDate: daysFromNowIso(7),
+      }),
+      task('task-6', 'Audit accessibility', 'open', null, {
+        assigneeId: 'mem-3',
+        description: 'Run WCAG audit on key marketing pages.',
+        dueDate: daysFromNowIso(21),
+      }),
     ],
     milestones: [
       { id: 'ms-1', title: 'Homepage Launch', dueDate: daysFromNowIso(14) },
@@ -235,9 +276,21 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       12,
     ),
     tasks: [
-      task('task-7', 'Build onboarding flow', 'done', 'ms-3'),
-      task('task-8', 'Integrate push notifications', 'open', 'ms-3'),
-      task('task-9', 'Submit to app store', 'open', null),
+      task('task-7', 'Build onboarding flow', 'done', 'ms-3', {
+        assigneeId: 'mem-1',
+        description: 'Design and implement the first-run onboarding screens.',
+        dueDate: daysAgoIso(5),
+      }),
+      task('task-8', 'Integrate push notifications', 'open', 'ms-3', {
+        assigneeId: 'mem-4',
+        description: 'Wire up FCM/APNs for transactional push alerts.',
+        dueDate: daysFromNowIso(14),
+      }),
+      task('task-9', 'Submit to app store', 'open', null, {
+        assigneeId: 'mem-1',
+        description: 'Prepare store listings and submit for review.',
+        dueDate: daysFromNowIso(28),
+      }),
     ],
     milestones: [
       { id: 'ms-3', title: 'Beta Release', dueDate: daysFromNowIso(21) },
@@ -278,8 +331,16 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       10,
     ),
     tasks: [
-      task('task-10', 'Export mainframe records', 'done', 'ms-4'),
-      task('task-11', 'Validate data integrity', 'done', 'ms-4'),
+      task('task-10', 'Export mainframe records', 'done', 'ms-4', {
+        assigneeId: 'mem-1',
+        description: 'Extract all ticket records from the legacy mainframe.',
+        dueDate: daysAgoIso(120),
+      }),
+      task('task-11', 'Validate data integrity', 'done', 'ms-4', {
+        assigneeId: 'mem-2',
+        description: 'Verify migrated records match source system counts.',
+        dueDate: daysAgoIso(100),
+      }),
     ],
     milestones: [
       { id: 'ms-4', title: 'Data Cutover', dueDate: daysAgoIso(90) },

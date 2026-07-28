@@ -159,10 +159,12 @@ export interface Task {
   title: string;
   status: TaskStatus;
   milestoneId: string | null;
+  assigneeId: string;
   parentTaskId?: string | null;
   description?: string;
   dueDate?: string | null;
   recurringRule?: RecurringRule | null;
+  deletedAt?: string | null;
 }
 
 export interface TaskHierarchyNode extends Task {
@@ -178,21 +180,23 @@ export interface TaskTemplate {
 
 export interface CreateTaskRequest {
   title: string;
+  description: string;
+  assigneeId: string;
+  dueDate: string;
   status?: TaskStatus;
   milestoneId?: string | null;
   parentTaskId?: string | null;
-  description?: string;
-  dueDate?: string | null;
   recurringRule?: RecurringRule | null;
 }
 
 export interface UpdateTaskRequest {
   title?: string;
+  description?: string;
+  assigneeId?: string;
+  dueDate?: string;
   status?: TaskStatus;
   milestoneId?: string | null;
   parentTaskId?: string | null;
-  description?: string;
-  dueDate?: string | null;
   recurringRule?: RecurringRule | null;
 }
 

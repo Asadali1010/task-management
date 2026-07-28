@@ -25,6 +25,12 @@ import {
 import { MockMilestoneRecord, MockProjectRecord, seedProjects } from './mock-data';
 
 const MAX_ANALYTICS_DAYS = 60;
+export const DELETED_TASK_GRACE_PERIOD_DAYS = 30;
+
+export type TaskOperationResult =
+  | { kind: 'success'; task: Task }
+  | { kind: 'validation_error' }
+  | { kind: 'not_found' };
 
 function cloneRecords(): Record<string, MockProjectRecord> {
   return structuredClone(seedProjects);
@@ -47,8 +53,66 @@ function defaultActor(record: MockProjectRecord): string {
   return record.detail.members[0]?.name ?? DEFAULT_ACTOR;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isValidDueDate(value: unknown): value is string {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
+
+function isProjectMember(record: MockProjectRecord, assigneeId: string): boolean {
+  return record.detail.members.some((member) => member.id === assigneeId);
+}
+
+function validateTaskFields(
+  record: MockProjectRecord,
+  fields: { title: unknown; description: unknown; assigneeId: unknown; dueDate: unknown },
+): boolean {
+  return (
+    isNonEmptyString(fields.title) &&
+    isNonEmptyString(fields.description) &&
+    isNonEmptyString(fields.assigneeId) &&
+    isProjectMember(record, fields.assigneeId) &&
+    isValidDueDate(fields.dueDate)
+  );
+}
+
+function isWithinGracePeriod(deletedAt: string): boolean {
+  const graceMs = DELETED_TASK_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+  return Date.now() - new Date(deletedAt).getTime() <= graceMs;
+}
+
+function purgeExpiredDeletions(record: MockProjectRecord): void {
+  const expiredIds = new Set(
+    record.tasks
+      .filter((taskItem) => taskItem.deletedAt && !isWithinGracePeriod(taskItem.deletedAt))
+      .map((taskItem) => taskItem.id),
+  );
+
+  if (expiredIds.size === 0) {
+    return;
+  }
+
+  record.tasks = record.tasks.filter((taskItem) => !expiredIds.has(taskItem.id));
+  record.taskDependencies = record.taskDependencies.filter(
+    (dependency) =>
+      !expiredIds.has(dependency.taskId) && !expiredIds.has(dependency.dependsOnTaskId),
+  );
+  record.taskHistory = record.taskHistory.filter((entry) => !expiredIds.has(entry.taskId));
+}
+
+function activeTasks(record: MockProjectRecord): Task[] {
+  purgeExpiredDeletions(record);
+  return record.tasks.filter((taskItem) => !taskItem.deletedAt);
+}
+
 function recalculateTaskMetrics(record: MockProjectRecord): void {
-  const { tasks } = record;
+  const tasks = activeTasks(record);
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((taskItem) => taskItem.status === 'done').length;
   const openTasks = totalTasks - completedTasks;
@@ -104,12 +168,24 @@ function appendTaskHistory(
 }
 
 function findTask(record: MockProjectRecord, taskId: string): Task | undefined {
+  return activeTasks(record).find((taskItem) => taskItem.id === taskId);
+}
+
+function findTaskIncludingDeleted(record: MockProjectRecord, taskId: string): Task | undefined {
+  purgeExpiredDeletions(record);
   return record.tasks.find((taskItem) => taskItem.id === taskId);
+}
+
+function softDeleteTask(record: MockProjectRecord, taskId: string, deletedAt: string): void {
+  record.tasks = record.tasks.map((taskItem) =>
+    taskItem.id === taskId ? { ...taskItem, deletedAt } : taskItem,
+  );
 }
 
 function collectDescendantTaskIds(record: MockProjectRecord, rootTaskId: string): string[] {
   const ids: string[] = [];
   const queue = [rootTaskId];
+  const tasks = activeTasks(record);
 
   while (queue.length > 0) {
     const currentId = queue.shift();
@@ -117,7 +193,7 @@ function collectDescendantTaskIds(record: MockProjectRecord, rootTaskId: string)
       continue;
     }
     ids.push(currentId);
-    record.tasks
+    tasks
       .filter((taskItem) => taskItem.parentTaskId === currentId)
       .forEach((taskItem) => queue.push(taskItem.id));
   }
@@ -318,7 +394,10 @@ function startOfDay(date: Date): Date {
 
 function enrichMilestone(projectId: string, raw: MockMilestoneRecord): Milestone {
   const record = store[projectId];
-  const linkedTasks = record?.tasks.filter((taskItem) => taskItem.milestoneId === raw.id) ?? [];
+  const linkedTasks =
+    record?.tasks.filter(
+      (taskItem) => taskItem.milestoneId === raw.id && !taskItem.deletedAt,
+    ) ?? [];
   const completedCount = linkedTasks.filter((taskItem) => taskItem.status === 'done').length;
   const progressPercent =
     linkedTasks.length === 0 ? 0 : Math.round((completedCount / linkedTasks.length) * 100);
@@ -368,7 +447,51 @@ export function listTasks(projectId: string): Task[] | undefined {
     return undefined;
   }
 
-  return record.tasks.map((taskItem) => ({ ...taskItem }));
+  return activeTasks(record).map((taskItem) => ({ ...taskItem }));
+}
+
+export function listDeletedTasks(projectId: string): Task[] | undefined {
+  const record = store[projectId];
+  if (!record) {
+    return undefined;
+  }
+
+  purgeExpiredDeletions(record);
+
+  return record.tasks
+    .filter((taskItem) => taskItem.deletedAt && isWithinGracePeriod(taskItem.deletedAt))
+    .map((taskItem) => ({ ...taskItem }));
+}
+
+export function restoreTask(projectId: string, taskId: string): Task | undefined {
+  const record = getRecord(projectId);
+  if (!record) {
+    return undefined;
+  }
+
+  const existing = findTaskIncludingDeleted(record, taskId);
+  if (!existing?.deletedAt || !isWithinGracePeriod(existing.deletedAt)) {
+    return undefined;
+  }
+
+  const actor = defaultActor(record);
+  const { deletedAt: _removed, ...restoredFields } = existing;
+  const restoredTask: Task = { ...restoredFields };
+
+  record.tasks = record.tasks.map((taskItem) =>
+    taskItem.id === taskId ? restoredTask : taskItem,
+  );
+  recalculateTaskMetrics(record);
+  appendActivity(record, 'task_restored', `${actor} restored task "${restoredTask.title}"`, actor);
+  appendTaskHistory(
+    record,
+    taskId,
+    'updated',
+    `Restored task "${restoredTask.title}"`,
+    actor,
+  );
+
+  return { ...restoredTask };
 }
 
 export function linkTaskToMilestone(
@@ -381,8 +504,8 @@ export function linkTaskToMilestone(
     return undefined;
   }
 
-  const taskIndex = record.tasks.findIndex((taskItem) => taskItem.id === taskId);
-  if (taskIndex === -1) {
+  const existing = findTask(record, taskId);
+  if (!existing) {
     return undefined;
   }
 
@@ -390,37 +513,49 @@ export function linkTaskToMilestone(
     return undefined;
   }
 
-  const updatedTask: Task = { ...record.tasks[taskIndex], milestoneId };
+  const updatedTask: Task = { ...existing, milestoneId };
   record.tasks = record.tasks.map((taskItem) => (taskItem.id === taskId ? updatedTask : taskItem));
   return { ...updatedTask };
 }
 
-export function createTask(projectId: string, request: CreateTaskRequest): Task | undefined {
+export function createTask(projectId: string, request: CreateTaskRequest): TaskOperationResult {
   const record = getRecord(projectId);
   if (!record) {
-    return undefined;
+    return { kind: 'not_found' };
+  }
+
+  if (
+    !validateTaskFields(record, {
+      title: request.title,
+      description: request.description,
+      assigneeId: request.assigneeId,
+      dueDate: request.dueDate,
+    })
+  ) {
+    return { kind: 'validation_error' };
   }
 
   if (request.parentTaskId && !findTask(record, request.parentTaskId)) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   if (
     request.milestoneId &&
     !record.milestones.some((milestone) => milestone.id === request.milestoneId)
   ) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   const actor = defaultActor(record);
   const taskItem: Task = {
     id: `task-${nextTaskId++}`,
-    title: request.title,
+    title: request.title.trim(),
     status: request.status ?? 'open',
     milestoneId: request.milestoneId ?? null,
     parentTaskId: request.parentTaskId ?? null,
-    description: request.description ?? '',
-    dueDate: request.dueDate ?? null,
+    description: request.description.trim(),
+    assigneeId: request.assigneeId,
+    dueDate: request.dueDate,
     recurringRule: request.recurringRule ?? null,
   };
 
@@ -435,44 +570,56 @@ export function createTask(projectId: string, request: CreateTaskRequest): Task 
     actor,
   );
 
-  return { ...taskItem };
+  return { kind: 'success', task: { ...taskItem } };
 }
 
 export function updateTask(
   projectId: string,
   taskId: string,
   request: UpdateTaskRequest,
-): Task | undefined {
+): TaskOperationResult {
   const record = getRecord(projectId);
   if (!record) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   const existing = findTask(record, taskId);
   if (!existing) {
-    return undefined;
+    return { kind: 'not_found' };
+  }
+
+  const mergedFields = {
+    title: request.title !== undefined ? request.title : existing.title,
+    description: request.description !== undefined ? request.description : existing.description,
+    assigneeId: request.assigneeId !== undefined ? request.assigneeId : existing.assigneeId,
+    dueDate: request.dueDate !== undefined ? request.dueDate : existing.dueDate,
+  };
+
+  if (!validateTaskFields(record, mergedFields)) {
+    return { kind: 'validation_error' };
   }
 
   if (request.parentTaskId && !findTask(record, request.parentTaskId)) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   if (
     request.milestoneId &&
     !record.milestones.some((milestone) => milestone.id === request.milestoneId)
   ) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   const actor = defaultActor(record);
   const updatedTask: Task = {
     ...existing,
-    ...(request.title !== undefined ? { title: request.title } : {}),
+    title: mergedFields.title.trim(),
+    description: (mergedFields.description ?? '').trim(),
+    assigneeId: mergedFields.assigneeId,
+    dueDate: mergedFields.dueDate ?? null,
     ...(request.status !== undefined ? { status: request.status } : {}),
     ...(request.milestoneId !== undefined ? { milestoneId: request.milestoneId } : {}),
     ...(request.parentTaskId !== undefined ? { parentTaskId: request.parentTaskId } : {}),
-    ...(request.description !== undefined ? { description: request.description } : {}),
-    ...(request.dueDate !== undefined ? { dueDate: request.dueDate } : {}),
     ...(request.recurringRule !== undefined ? { recurringRule: request.recurringRule } : {}),
   };
 
@@ -505,7 +652,7 @@ export function updateTask(
   }
 
   appendActivity(record, 'task_updated', `${actor} updated task "${updatedTask.title}"`, actor);
-  return { ...updatedTask };
+  return { kind: 'success', task: { ...updatedTask } };
 }
 
 export function deleteTask(projectId: string, taskId: string): boolean {
@@ -520,14 +667,12 @@ export function deleteTask(projectId: string, taskId: string): boolean {
   }
 
   const actor = defaultActor(record);
-  const idsToRemove = new Set(collectDescendantTaskIds(record, taskId));
+  const deletedAt = new Date().toISOString();
+  const idsToSoftDelete = new Set(collectDescendantTaskIds(record, taskId));
 
-  record.tasks = record.tasks.filter((taskItem) => !idsToRemove.has(taskItem.id));
-  record.taskDependencies = record.taskDependencies.filter(
-    (dependency) =>
-      !idsToRemove.has(dependency.taskId) && !idsToRemove.has(dependency.dependsOnTaskId),
-  );
-  record.taskHistory = record.taskHistory.filter((entry) => !idsToRemove.has(entry.taskId));
+  for (const id of idsToSoftDelete) {
+    softDeleteTask(record, id, deletedAt);
+  }
 
   recalculateTaskMetrics(record);
   appendActivity(record, 'task_deleted', `${actor} deleted task "${existing.title}"`, actor);
@@ -568,19 +713,22 @@ function duplicateTaskWithParent(
 
   const actor = defaultActor(record);
   const duplicateTitle = isRoot && request.title ? request.title : `${source.title} (copy)`;
-  const duplicate = createTask(projectId, {
+  const createResult = createTask(projectId, {
     title: duplicateTitle,
     status: source.status,
     milestoneId: source.milestoneId,
     parentTaskId,
-    description: source.description,
-    dueDate: source.dueDate ?? null,
+    description: source.description ?? '',
+    assigneeId: source.assigneeId,
+    dueDate: source.dueDate ?? new Date().toISOString(),
     recurringRule: source.recurringRule ?? null,
   });
 
-  if (!duplicate) {
+  if (createResult.kind !== 'success') {
     return undefined;
   }
+
+  const duplicate = createResult.task;
 
   appendTaskHistory(
     record,
@@ -591,7 +739,7 @@ function duplicateTaskWithParent(
   );
 
   if (request.includeSubtasks) {
-    const subtasks = record.tasks.filter((taskItem) => taskItem.parentTaskId === source.id);
+    const subtasks = activeTasks(record).filter((taskItem) => taskItem.parentTaskId === source.id);
     for (const subtask of subtasks) {
       duplicateTaskWithParent(projectId, subtask, {}, duplicate.id, false);
     }
@@ -606,7 +754,7 @@ export function getTaskHierarchy(projectId: string): TaskHierarchyNode[] | undef
     return undefined;
   }
 
-  return buildHierarchy(record.tasks);
+  return buildHierarchy(activeTasks(record));
 }
 
 export function listTaskTemplates(projectId: string): TaskTemplate[] | undefined {
@@ -632,13 +780,25 @@ export function createTaskFromTemplate(
     return undefined;
   }
 
-  return createTask(projectId, {
+  const defaultMemberId = record.detail.members[0]?.id;
+  if (!defaultMemberId) {
+    return undefined;
+  }
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 14);
+
+  const createResult = createTask(projectId, {
     title: request.title ?? template.title,
     status: template.defaultStatus,
     description: template.description,
+    assigneeId: defaultMemberId,
+    dueDate: dueDate.toISOString(),
     milestoneId: request.milestoneId ?? null,
     parentTaskId: request.parentTaskId ?? null,
   });
+
+  return createResult.kind === 'success' ? createResult.task : undefined;
 }
 
 export function bulkTaskAction(
@@ -657,19 +817,20 @@ export function bulkTaskAction(
   }
 
   if (request.action === 'delete') {
-    const idsToRemove = new Set<string>();
+    const idsToSoftDelete = new Set<string>();
     for (const id of existingIds) {
-      collectDescendantTaskIds(record, id).forEach((descendantId) => idsToRemove.add(descendantId));
+      collectDescendantTaskIds(record, id).forEach((descendantId) =>
+        idsToSoftDelete.add(descendantId),
+      );
     }
 
     const actor = defaultActor(record);
-    const removedTasks = record.tasks.filter((taskItem) => idsToRemove.has(taskItem.id));
-    record.tasks = record.tasks.filter((taskItem) => !idsToRemove.has(taskItem.id));
-    record.taskDependencies = record.taskDependencies.filter(
-      (dependency) =>
-        !idsToRemove.has(dependency.taskId) && !idsToRemove.has(dependency.dependsOnTaskId),
-    );
-    record.taskHistory = record.taskHistory.filter((entry) => !idsToRemove.has(entry.taskId));
+    const deletedAt = new Date().toISOString();
+    const removedTasks = activeTasks(record).filter((taskItem) => idsToSoftDelete.has(taskItem.id));
+
+    for (const id of idsToSoftDelete) {
+      softDeleteTask(record, id, deletedAt);
+    }
 
     for (const taskItem of removedTasks) {
       appendTaskHistory(record, taskItem.id, 'deleted', `Deleted task "${taskItem.title}"`, actor);
@@ -691,9 +852,9 @@ export function bulkTaskAction(
   if (request.action === 'update_status' && request.status) {
     const updatedTasks: Task[] = [];
     for (const id of existingIds) {
-      const updated = updateTask(projectId, id, { status: request.status });
-      if (updated) {
-        updatedTasks.push(updated);
+      const result = updateTask(projectId, id, { status: request.status });
+      if (result.kind === 'success') {
+        updatedTasks.push(result.task);
       }
     }
     return { affectedCount: updatedTasks.length, tasks: updatedTasks };
