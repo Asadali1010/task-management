@@ -1,14 +1,43 @@
-import { ProjectActivity, ProjectDetail, ProjectMember } from '../models/project.models';
+import {
+  ProjectActivity,
+  ProjectDetail,
+  ProjectMember,
+  Task,
+  TaskStatus,
+} from '../models/project.models';
+
+export interface MockMilestoneRecord {
+  id: string;
+  title: string;
+  dueDate: string;
+}
 
 export interface MockProjectRecord {
   detail: ProjectDetail;
   activityLog: ProjectActivity[];
+  tasks: Task[];
+  milestones: MockMilestoneRecord[];
 }
 
 function daysAgoIso(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);
   return date.toISOString();
+}
+
+function daysFromNowIso(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function task(
+  id: string,
+  title: string,
+  status: TaskStatus,
+  milestoneId: string | null = null,
+): Task {
+  return { id, title, status, milestoneId };
 }
 
 function member(
@@ -95,6 +124,18 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       websiteMembers.map((m) => m.name),
       24,
     ),
+    tasks: [
+      task('task-1', 'Update homepage hero', 'done', 'ms-1'),
+      task('task-2', 'Implement responsive navigation', 'done', 'ms-1'),
+      task('task-3', 'Write launch blog post', 'open', 'ms-1'),
+      task('task-4', 'Migrate legacy blog content', 'done', 'ms-2'),
+      task('task-5', 'Redirect old URLs', 'open', 'ms-2'),
+      task('task-6', 'Audit accessibility', 'open', null),
+    ],
+    milestones: [
+      { id: 'ms-1', title: 'Homepage Launch', dueDate: daysFromNowIso(14) },
+      { id: 'ms-2', title: 'Content Migration', dueDate: daysAgoIso(10) },
+    ],
   },
   'proj-2': {
     detail: {
@@ -121,6 +162,14 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       mobileMembers.map((m) => m.name),
       12,
     ),
+    tasks: [
+      task('task-7', 'Build onboarding flow', 'done', 'ms-3'),
+      task('task-8', 'Integrate push notifications', 'open', 'ms-3'),
+      task('task-9', 'Submit to app store', 'open', null),
+    ],
+    milestones: [
+      { id: 'ms-3', title: 'Beta Release', dueDate: daysFromNowIso(21) },
+    ],
   },
   'proj-3': {
     detail: {
@@ -147,5 +196,12 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       legacyMembers.map((m) => m.name),
       10,
     ),
+    tasks: [
+      task('task-10', 'Export mainframe records', 'done', 'ms-4'),
+      task('task-11', 'Validate data integrity', 'done', 'ms-4'),
+    ],
+    milestones: [
+      { id: 'ms-4', title: 'Data Cutover', dueDate: daysAgoIso(90) },
+    ],
   },
 };

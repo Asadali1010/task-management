@@ -1,4 +1,5 @@
 import {
+  Milestone,
   ProjectActivityPageResponse,
   ProjectAnalytics,
   ProjectAnalyticsStatusBreakdown,
@@ -7,8 +8,9 @@ import {
   ProjectMember,
   ProjectRole,
   ProjectSummary,
+  Task,
 } from '../models/project.models';
-import { MockProjectRecord, seedProjects } from './mock-data';
+import { MockMilestoneRecord, MockProjectRecord, seedProjects } from './mock-data';
 
 const MAX_ANALYTICS_DAYS = 60;
 
@@ -18,6 +20,7 @@ function cloneRecords(): Record<string, MockProjectRecord> {
 
 let store = cloneRecords();
 let nextMemberId = 100;
+let nextMilestoneId = 100;
 
 function toSummary(record: MockProjectRecord): ProjectSummary {
   const { metadata, viewerRole } = record.detail;
@@ -195,7 +198,93 @@ export function updateMemberRole(
   return updated;
 }
 
+function startOfDay(date: Date): Date {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
+function enrichMilestone(projectId: string, raw: MockMilestoneRecord): Milestone {
+  const record = store[projectId];
+  const linkedTasks = record?.tasks.filter((taskItem) => taskItem.milestoneId === raw.id) ?? [];
+  const completedCount = linkedTasks.filter((taskItem) => taskItem.status === 'done').length;
+  const progressPercent =
+    linkedTasks.length === 0 ? 0 : Math.round((completedCount / linkedTasks.length) * 100);
+  const isOverdue =
+    startOfDay(new Date(raw.dueDate)) < startOfDay(new Date()) && progressPercent < 100;
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    dueDate: raw.dueDate,
+    progressPercent,
+    isOverdue,
+  };
+}
+
+export function listMilestones(projectId: string): Milestone[] | undefined {
+  const record = store[projectId];
+  if (!record) {
+    return undefined;
+  }
+
+  return record.milestones.map((milestone) => enrichMilestone(projectId, milestone));
+}
+
+export function createMilestone(
+  projectId: string,
+  title: string,
+  dueDate: string,
+): Milestone | undefined {
+  const record = store[projectId];
+  if (!record) {
+    return undefined;
+  }
+
+  const raw: MockMilestoneRecord = {
+    id: `ms-${nextMilestoneId++}`,
+    title,
+    dueDate,
+  };
+  record.milestones = [...record.milestones, raw];
+  return enrichMilestone(projectId, raw);
+}
+
+export function listTasks(projectId: string): Task[] | undefined {
+  const record = store[projectId];
+  if (!record) {
+    return undefined;
+  }
+
+  return record.tasks.map((taskItem) => ({ ...taskItem }));
+}
+
+export function linkTaskToMilestone(
+  projectId: string,
+  taskId: string,
+  milestoneId: string | null,
+): Task | undefined {
+  const record = store[projectId];
+  if (!record) {
+    return undefined;
+  }
+
+  const taskIndex = record.tasks.findIndex((taskItem) => taskItem.id === taskId);
+  if (taskIndex === -1) {
+    return undefined;
+  }
+
+  if (milestoneId !== null && !record.milestones.some((milestone) => milestone.id === milestoneId)) {
+    return undefined;
+  }
+
+  const updatedTask: Task = { ...record.tasks[taskIndex], milestoneId };
+  record.tasks = record.tasks.map((taskItem) => (taskItem.id === taskId ? updatedTask : taskItem));
+  return { ...updatedTask };
+}
+
 export function resetMockStore(): void {
   store = cloneRecords();
   nextMemberId = 100;
+  nextMilestoneId = 100;
 }

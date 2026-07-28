@@ -4,11 +4,15 @@ import { Observable, of, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ArchiveProjectResponse,
+  CreateMilestoneRequest,
   InviteMemberRequest,
   InviteMemberResponse,
+  LinkTaskToMilestoneRequest,
+  MilestoneListResponse,
   ProjectListResponse,
   ProjectRole,
   RestoreProjectResponse,
+  TaskListResponse,
   UpdateMemberRoleRequest,
   UpdateMemberRoleResponse,
 } from '../models/project.models';
@@ -81,6 +85,37 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
   if (req.method === 'DELETE' && removeMatch) {
     const removed = mockStore.removeMember(removeMatch[1], removeMatch[2]);
     return removed ? jsonResponse<void>(undefined) : notFound(req.url);
+  }
+
+  const milestonesMatch = path.match(/^\/projects\/([^/]+)\/milestones$/);
+  if (req.method === 'GET' && milestonesMatch) {
+    const milestones = mockStore.listMilestones(milestonesMatch[1]);
+    return milestones ? jsonResponse<MilestoneListResponse>({ milestones }) : notFound(req.url);
+  }
+
+  if (req.method === 'POST' && milestonesMatch) {
+    const { title, dueDate } = req.body as CreateMilestoneRequest;
+    const milestone = mockStore.createMilestone(milestonesMatch[1], title, dueDate);
+    return milestone ? jsonResponse(milestone) : notFound(req.url);
+  }
+
+  const tasksMatch = path.match(/^\/projects\/([^/]+)\/tasks$/);
+  if (req.method === 'GET' && tasksMatch) {
+    const tasks = mockStore.listTasks(tasksMatch[1]);
+    return tasks ? jsonResponse<TaskListResponse>({ tasks }) : notFound(req.url);
+  }
+
+  const taskMatch = path.match(/^\/projects\/([^/]+)\/tasks\/([^/]+)$/);
+  if (req.method === 'GET' && taskMatch) {
+    const tasks = mockStore.listTasks(taskMatch[1]);
+    const task = tasks?.find((taskItem) => taskItem.id === taskMatch[2]);
+    return task ? jsonResponse(task) : notFound(req.url);
+  }
+
+  if (req.method === 'PATCH' && taskMatch) {
+    const { milestoneId } = req.body as LinkTaskToMilestoneRequest;
+    const task = mockStore.linkTaskToMilestone(taskMatch[1], taskMatch[2], milestoneId);
+    return task ? jsonResponse(task) : notFound(req.url);
   }
 
   const detailMatch = path.match(/^\/projects\/([^/]+)$/);
