@@ -80,3 +80,33 @@ export interface UpdateMemberRoleRequest {
 export interface UpdateMemberRoleResponse {
   member: ProjectMember;
 }
+
+export interface ProjectAnalyticsSummaryMetrics {
+  totalTasks: number;
+  completedTasks: number;
+  openTasks: number;
+  overdueTasks: number;
+  memberCount: number;
+}
+
+export interface ProjectAnalyticsTimeSeriesPoint {
+  date: string;
+  completed: number;
+  created: number;
+}
+
+export interface ProjectAnalyticsStatusBreakdown {
+  status: string;
+  count: number;
+}
+
+export interface ProjectAnalytics {
+  summary: ProjectAnalyticsSummaryMetrics;
+  timeSeries: ProjectAnalyticsTimeSeriesPoint[];
+  statusBreakdown: ProjectAnalyticsStatusBreakdown[];
+}
+
+export interface ProjectAnalyticsDateRange {
+  from: string;
+  to: string;
+}

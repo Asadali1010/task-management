@@ -7,6 +7,8 @@ import {
   ArchiveProjectResponse,
   InviteMemberRequest,
   InviteMemberResponse,
+  ProjectAnalytics,
+  ProjectAnalyticsDateRange,
   ProjectDetail,
   ProjectListResponse,
   ProjectRole,
@@ -28,6 +30,18 @@ export class ProjectService {
 
   getProjectDetail(id: string): Observable<ProjectDetail> {
     return this.http.get<ProjectDetail>(`${environment.apiUrl}/projects/${id}`);
+  }
+
+  getProjectAnalytics(
+    projectId: string,
+    range: ProjectAnalyticsDateRange,
+  ): Observable<ProjectAnalytics> {
+    return this.http.get<ProjectAnalytics>(
+      `${environment.apiUrl}/projects/${projectId}/analytics`,
+      {
+        params: { from: range.from, to: range.to },
+      },
+    );
   }
 
   archiveProject(id: string): Observable<ArchiveProjectResponse> {

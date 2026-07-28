@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import {
   ArchiveProjectResponse,
   InviteMemberResponse,
+  ProjectAnalytics as ProjectAnalyticsModel,
   ProjectDetail as ProjectDetailModel,
   RestoreProjectResponse,
   UpdateMemberRoleResponse,
@@ -19,6 +20,7 @@ describe('ProjectDetail', () => {
   let fixture: ComponentFixture<ProjectDetail>;
   let projectService: {
     getProjectDetail: ReturnType<typeof vi.fn>;
+    getProjectAnalytics: ReturnType<typeof vi.fn>;
     inviteMember: ReturnType<typeof vi.fn>;
     removeMember: ReturnType<typeof vi.fn>;
     updateMemberRole: ReturnType<typeof vi.fn>;
@@ -70,9 +72,29 @@ describe('ProjectDetail', () => {
     viewerRole: 'owner',
   };
 
+  const mockProjectAnalytics: ProjectAnalyticsModel = {
+    summary: {
+      totalTasks: 24,
+      completedTasks: 18,
+      openTasks: 6,
+      overdueTasks: 2,
+      memberCount: 2,
+    },
+    timeSeries: [
+      { date: '2026-07-01', completed: 2, created: 3 },
+      { date: '2026-07-02', completed: 4, created: 1 },
+    ],
+    statusBreakdown: [
+      { status: 'done', count: 18 },
+      { status: 'in_progress', count: 4 },
+      { status: 'todo', count: 2 },
+    ],
+  };
+
   beforeEach(async () => {
     projectService = {
       getProjectDetail: vi.fn(),
+      getProjectAnalytics: vi.fn(),
       inviteMember: vi.fn(),
       removeMember: vi.fn(),
       updateMemberRole: vi.fn(),
@@ -119,6 +141,7 @@ describe('ProjectDetail', () => {
     detail: ProjectDetailModel = mockProjectDetail,
   ): void {
     projectService.getProjectDetail.mockReturnValue(of(detail));
+    projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
     createComponent();
   }
 
@@ -138,6 +161,7 @@ describe('ProjectDetail', () => {
   it('should show loading state while project detail is fetched', () => {
     const detailSubject = new Subject<ProjectDetailModel>();
     projectService.getProjectDetail.mockReturnValue(detailSubject.asObservable());
+    projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
 
     createComponent();
 
@@ -152,7 +176,7 @@ describe('ProjectDetail', () => {
     expect(compiled.querySelector('[role="status"]')).toBeFalsy();
   });
 
-  it('should render metadata, members, activity, and metrics from fixture data', () => {
+  it('should render metadata, members, activity, and embedded analytics from fixture data', () => {
     createComponentWithDetail();
 
     const compiled = getCompiled();
@@ -172,11 +196,17 @@ describe('ProjectDetail', () => {
     expect(compiled.querySelector('#activity-heading')?.textContent).toContain('Recent activity');
     expect(compiled.textContent).toContain('Completed task "Update homepage hero"');
 
-    expect(compiled.querySelector('#metrics-heading')?.textContent).toContain('Key metrics');
-    expect(compiled.textContent).toContain('24');
-    expect(compiled.textContent).toContain('18');
-    expect(compiled.textContent).toContain('6');
-    expect(compiled.textContent).toContain('2');
+    expect(compiled.querySelector('app-project-analytics')).toBeTruthy();
+    expect(compiled.querySelector('#filters-heading')?.textContent).toContain('Key metrics');
+    expect(compiled.textContent).toContain('Completion trend');
+    expect(compiled.textContent).toContain('Status breakdown');
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledWith(
+      'proj-1',
+      expect.objectContaining({
+        from: expect.stringMatching(/T00:00:00\.000Z$/),
+        to: expect.stringMatching(/T23:59:59\.999Z$/),
+      }),
+    );
   });
 
   it('should render section links using the routed project id', () => {
@@ -221,6 +251,7 @@ describe('ProjectDetail', () => {
     projectService.getProjectDetail
       .mockReturnValueOnce(throwError(() => new Error('Network error')))
       .mockReturnValueOnce(of(mockProjectDetail));
+    projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
 
     createComponent();
 
@@ -290,6 +321,7 @@ describe('ProjectDetail', () => {
     expect(getCompiled().textContent).toContain('Alex Rivera');
     expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(3);
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
   });
 
   it('should remove a member and update the list immediately', () => {
@@ -305,6 +337,7 @@ describe('ProjectDetail', () => {
     expect(fixture.componentInstance['project']()?.members).toHaveLength(1);
     expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(1);
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
   });
 
   it('should show actionable error when invite is forbidden', () => {
@@ -362,6 +395,7 @@ describe('ProjectDetail', () => {
       'admin',
     );
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
   });
 
   it('should keep owner rows read-only for owner viewers', () => {
@@ -600,5 +634,19 @@ describe('ProjectDetail', () => {
       'You do not have permission to restore this project.',
     );
     expect(fixture.componentInstance['project']()?.metadata.archivedAt).toBe('2026-07-25T12:00:00Z');
+  });
+
+  it('should poll analytics while the project detail page is open', () => {
+    vi.useFakeTimers();
+    createComponentWithDetail();
+
+    const initialCalls = projectService.getProjectAnalytics.mock.calls.length;
+    expect(initialCalls).toBe(1);
+
+    vi.advanceTimersByTime(30_000);
+    fixture.detectChanges();
+
+    expect(projectService.getProjectAnalytics.mock.calls.length).toBe(initialCalls + 1);
+    vi.useRealTimers();
   });
 });
