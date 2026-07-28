@@ -53,11 +53,16 @@ describe('Login', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Welcome back');
+    expect(compiled.querySelector('#login-hero-heading')?.textContent).toContain('Task Management');
+    expect(compiled.querySelector('.login-hero-tagline')?.textContent).toContain(
+      'Welcome back. Sign in to continue.',
+    );
     expect(compiled.querySelector('#email')).toBeTruthy();
     expect(compiled.querySelector('#password')).toBeTruthy();
     expect(compiled.querySelector('#rememberMe')).toBeTruthy();
-    expect(compiled.querySelector('button[type="submit"]')).toBeTruthy();
+    expect(compiled.querySelector('button[type="submit"]')?.textContent).toContain('Sign in');
+    expect(compiled.querySelector('a[href="/forgot-password"]')).toBeTruthy();
+    expect(compiled.querySelector('a[href="/register"]')).toBeTruthy();
   });
 
   it('should show validation errors when submitting an empty form', () => {
@@ -65,8 +70,8 @@ describe('Login', () => {
     submitForm();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Email is required.');
-    expect(compiled.textContent).toContain('Password is required.');
+    expect(compiled.querySelector('#email-error')?.textContent).toContain('Email is required.');
+    expect(compiled.querySelector('#password-error')?.textContent).toContain('Password is required.');
     expect(authService.login).not.toHaveBeenCalled();
   });
 
@@ -77,7 +82,7 @@ describe('Login', () => {
     submitForm();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Enter a valid email address.');
+    expect(compiled.querySelector('#email-error')?.textContent).toContain('Enter a valid email address.');
     expect(authService.login).not.toHaveBeenCalled();
   });
 
@@ -88,14 +93,19 @@ describe('Login', () => {
     const toggleButton = getElement('button[aria-label="Show password"]');
 
     expect(passwordInput.type).toBe('password');
+    expect(toggleButton.getAttribute('aria-pressed')).toBe('false');
 
     toggleButton.click();
     fixture.detectChanges();
     expect(passwordInput.type).toBe('text');
+    expect(toggleButton.getAttribute('aria-label')).toBe('Hide password');
+    expect(toggleButton.getAttribute('aria-pressed')).toBe('true');
 
     toggleButton.click();
     fixture.detectChanges();
     expect(passwordInput.type).toBe('password');
+    expect(toggleButton.getAttribute('aria-label')).toBe('Show password');
+    expect(toggleButton.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('should pass rememberMe to AuthService when checked', () => {
@@ -122,7 +132,9 @@ describe('Login', () => {
     submitForm();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Invalid email or password');
+    const alert = compiled.querySelector('[role="alert"]');
+    expect(alert).toBeTruthy();
+    expect(alert?.textContent).toContain('Invalid email or password. Check your credentials and try again.');
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
