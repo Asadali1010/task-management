@@ -3,7 +3,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 
 import { environment } from '../../../environments/environment';
-import { InviteMemberResponse, ProjectDetail } from '../models/project.models';
+import {
+  InviteMemberResponse,
+  ProjectDetail,
+  UpdateMemberRoleResponse,
+} from '../models/project.models';
 import { ProjectService } from './project.service';
 
 describe('ProjectService', () => {
@@ -93,6 +97,28 @@ describe('ProjectService', () => {
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ identifier: 'alex@example.com' });
     req.flush(mockInviteResponse);
+  });
+
+  const mockUpdateRoleResponse: UpdateMemberRoleResponse = {
+    member: {
+      id: 'user-2',
+      name: 'John Smith',
+      email: 'john@example.com',
+      role: 'admin',
+    },
+  };
+
+  it('should update a member role', () => {
+    service.updateMemberRole('proj-1', 'user-2', 'admin').subscribe((response) => {
+      expect(response).toEqual(mockUpdateRoleResponse);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/members/user-2/role`,
+    );
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ role: 'admin' });
+    req.flush(mockUpdateRoleResponse);
   });
 
   it('should remove a member by id', () => {

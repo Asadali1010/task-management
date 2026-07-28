@@ -1,3 +1,5 @@
+export type ProjectRole = 'owner' | 'admin' | 'member';
+
 export interface ProjectMetadata {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export interface ProjectMember {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: ProjectRole;
   avatarUrl?: string;
 }
 
@@ -36,7 +38,7 @@ export interface ProjectDetail {
   members: ProjectMember[];
   recentActivity: ProjectActivity[];
   metrics: ProjectMetrics;
-  viewerRole: string;
+  viewerRole: ProjectRole;
 }
 
 export interface InviteMemberRequest {
@@ -44,5 +46,13 @@ export interface InviteMemberRequest {
 }
 
 export interface InviteMemberResponse {
+  member: ProjectMember;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: ProjectRole;
+}
+
+export interface UpdateMemberRoleResponse {
   member: ProjectMember;
 }
