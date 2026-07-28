@@ -1,15 +1,24 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { ProjectDetail as ProjectDetailModel } from '../../core/models/project.models';
+import {
+  InviteMemberResponse,
+  ProjectDetail as ProjectDetailModel,
+} from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
 import { ProjectDetail } from './project-detail';
 
 describe('ProjectDetail', () => {
   let fixture: ComponentFixture<ProjectDetail>;
-  let projectService: { getProjectDetail: ReturnType<typeof vi.fn> };
+  let projectService: {
+    getProjectDetail: ReturnType<typeof vi.fn>;
+    inviteMember: ReturnType<typeof vi.fn>;
+    removeMember: ReturnType<typeof vi.fn>;
+  };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   const mockProjectDetail: ProjectDetailModel = {
@@ -51,10 +60,15 @@ describe('ProjectDetail', () => {
       overdueTasks: 2,
       memberCount: 2,
     },
+    viewerRole: 'owner',
   };
 
   beforeEach(async () => {
-    projectService = { getProjectDetail: vi.fn() };
+    projectService = {
+      getProjectDetail: vi.fn(),
+      inviteMember: vi.fn(),
+      removeMember: vi.fn(),
+    };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
     await TestBed.configureTestingModule({
@@ -79,9 +93,27 @@ describe('ProjectDetail', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('should create', () => {
-    projectService.getProjectDetail.mockReturnValue(of(mockProjectDetail));
+  function setInputValue(selector: string, value: string): void {
+    const input = getCompiled().querySelector(selector) as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function submitInviteForm(): void {
+    fixture.debugElement.query(By.css('.member-invite-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
+  }
+
+  function createComponentWithDetail(
+    detail: ProjectDetailModel = mockProjectDetail,
+  ): void {
+    projectService.getProjectDetail.mockReturnValue(of(detail));
     createComponent();
+  }
+
+  it('should create', () => {
+    createComponentWithDetail();
     expect(fixture.componentInstance).toBeTruthy();
   });
 
@@ -103,8 +135,7 @@ describe('ProjectDetail', () => {
   });
 
   it('should render metadata, members, activity, and metrics from fixture data', () => {
-    projectService.getProjectDetail.mockReturnValue(of(mockProjectDetail));
-    createComponent();
+    createComponentWithDetail();
 
     const compiled = getCompiled();
 
@@ -131,8 +162,7 @@ describe('ProjectDetail', () => {
   });
 
   it('should render section links using the routed project id', () => {
-    projectService.getProjectDetail.mockReturnValue(of(mockProjectDetail));
-    createComponent();
+    createComponentWithDetail();
 
     const links = Array.from(getCompiled().querySelectorAll('.project-nav-link'));
     const hrefs = links.map((link) => link.getAttribute('href'));
@@ -185,5 +215,103 @@ describe('ProjectDetail', () => {
     expect(getCompiled().querySelector('#project-name-heading')?.textContent).toContain(
       'Website Redesign',
     );
+  });
+
+  it('should show invite form and remove actions for owner viewers', () => {
+    createComponentWithDetail();
+
+    const compiled = getCompiled();
+    expect(compiled.querySelector('.member-invite-form')).toBeTruthy();
+    expect(compiled.querySelector('#member-invite-identifier')).toBeTruthy();
+    expect(compiled.textContent).toContain('Send invite');
+
+    const removeButtons = Array.from(compiled.querySelectorAll('.member-remove-btn'));
+    expect(removeButtons).toHaveLength(1);
+    expect(removeButtons[0]?.getAttribute('aria-label')).toContain('John Smith');
+  });
+
+  it('should show invite form and remove actions for admin viewers', () => {
+    createComponentWithDetail({ ...mockProjectDetail, viewerRole: 'admin' });
+
+    const compiled = getCompiled();
+    expect(compiled.querySelector('.member-invite-form')).toBeTruthy();
+    expect(compiled.querySelectorAll('.member-remove-btn')).toHaveLength(1);
+  });
+
+  it('should hide invite and remove controls for non-admin viewers', () => {
+    createComponentWithDetail({ ...mockProjectDetail, viewerRole: 'member' });
+
+    const compiled = getCompiled();
+    expect(compiled.querySelector('.member-invite-form')).toBeFalsy();
+    expect(compiled.querySelector('.member-remove-btn')).toBeFalsy();
+    expect(compiled.textContent).toContain('Jane Doe');
+    expect(compiled.textContent).toContain('John Smith');
+  });
+
+  it('should invite a member and update the list without reloading the page', () => {
+    const inviteResponse: InviteMemberResponse = {
+      member: {
+        id: 'user-3',
+        name: 'Alex Rivera',
+        email: 'alex@example.com',
+        role: 'member',
+      },
+    };
+
+    createComponentWithDetail();
+    projectService.inviteMember.mockReturnValue(of(inviteResponse));
+
+    setInputValue('#member-invite-identifier', 'alex@example.com');
+    submitInviteForm();
+
+    expect(projectService.inviteMember).toHaveBeenCalledWith('proj-1', 'alex@example.com');
+    expect(getCompiled().textContent).toContain('Invitation sent to Alex Rivera.');
+    expect(getCompiled().textContent).toContain('Alex Rivera');
+    expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(3);
+    expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('should remove a member and update the list immediately', () => {
+    createComponentWithDetail();
+    projectService.removeMember.mockReturnValue(of(undefined));
+
+    const removeButton = getCompiled().querySelector('.member-remove-btn') as HTMLButtonElement;
+    removeButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.removeMember).toHaveBeenCalledWith('proj-1', 'user-2');
+    expect(getCompiled().textContent).not.toContain('John Smith');
+    expect(fixture.componentInstance['project']()?.members).toHaveLength(1);
+    expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(1);
+    expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show actionable error when invite is forbidden', () => {
+    createComponentWithDetail();
+    projectService.inviteMember.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 403 })),
+    );
+
+    setInputValue('#member-invite-identifier', 'alex@example.com');
+    submitInviteForm();
+
+    const alert = getCompiled().querySelector('.member-action-error');
+    expect(alert?.textContent).toContain(
+      'You do not have permission to manage members on this project.',
+    );
+  });
+
+  it('should show actionable error when remove fails with 404', () => {
+    createComponentWithDetail();
+    projectService.removeMember.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 404 })),
+    );
+
+    const removeButton = getCompiled().querySelector('.member-remove-btn') as HTMLButtonElement;
+    removeButton.click();
+    fixture.detectChanges();
+
+    const alert = getCompiled().querySelector('.member-action-error');
+    expect(alert?.textContent).toContain('Member not found. Refresh the page and try again.');
   });
 });

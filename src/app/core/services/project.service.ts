@@ -3,7 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { ProjectDetail } from '../models/project.models';
+import {
+  InviteMemberRequest,
+  InviteMemberResponse,
+  ProjectDetail,
+} from '../models/project.models';
 
 @Injectable({ providedIn: 'root' })
 export class ProjectService {
@@ -11,5 +15,19 @@ export class ProjectService {
 
   getProjectDetail(id: string): Observable<ProjectDetail> {
     return this.http.get<ProjectDetail>(`${environment.apiUrl}/projects/${id}`);
+  }
+
+  inviteMember(projectId: string, identifier: string): Observable<InviteMemberResponse> {
+    const body: InviteMemberRequest = { identifier };
+    return this.http.post<InviteMemberResponse>(
+      `${environment.apiUrl}/projects/${projectId}/members/invite`,
+      body,
+    );
+  }
+
+  removeMember(projectId: string, memberId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${environment.apiUrl}/projects/${projectId}/members/${memberId}`,
+    );
   }
 }

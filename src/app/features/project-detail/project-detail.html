@@ -62,8 +62,69 @@
     <div class="project-detail-grid">
       <section class="project-panel project-members" aria-labelledby="members-heading">
         <h2 id="members-heading" class="project-panel-heading">Team members</h2>
+
+        @if (canManageMembers(detail)) {
+          @if (inviteSuccessMessage()) {
+            <p class="member-action-success" role="status" aria-live="polite">
+              {{ inviteSuccessMessage() }}
+            </p>
+          }
+          @if (memberActionError()) {
+            <p class="member-action-error" role="alert">{{ memberActionError() }}</p>
+          }
+          <form
+            class="member-invite-form"
+            [formGroup]="inviteForm"
+            (ngSubmit)="onInviteSubmit()"
+            novalidate
+          >
+            <label for="member-invite-identifier" class="member-invite-label">
+              Invite by email or username
+            </label>
+            <div class="member-invite-row">
+              <input
+                id="member-invite-identifier"
+                type="text"
+                class="member-invite-input"
+                formControlName="identifier"
+                autocomplete="off"
+                placeholder="Email or username"
+                [attr.aria-invalid]="
+                  inviteForm.controls.identifier.touched && inviteForm.controls.identifier.invalid
+                "
+                aria-describedby="member-invite-hint"
+              />
+              <button
+                type="submit"
+                class="member-invite-btn"
+                [disabled]="inviteForm.invalid || isInviting()"
+              >
+                @if (isInviting()) {
+                  Sending…
+                } @else {
+                  Send invite
+                }
+              </button>
+            </div>
+            @if (
+              inviteForm.controls.identifier.touched &&
+              inviteForm.controls.identifier.hasError('required')
+            ) {
+              <p id="member-invite-hint" class="member-invite-hint member-invite-hint-error">
+                Enter an email or username.
+              </p>
+            }
+          </form>
+        }
+
         @if (detail.members.length === 0) {
-          <p class="project-empty">No members yet. Invite teammates from project settings.</p>
+          <p class="project-empty">
+            @if (canManageMembers(detail)) {
+              No members yet. Use the form above to invite teammates.
+            } @else {
+              No members yet.
+            }
+          </p>
         } @else {
           <ul class="member-list">
             @for (member of detail.members; track member.id) {
@@ -73,6 +134,21 @@
                   <span class="member-name">{{ member.name }}</span>
                   <span class="member-role">{{ member.role }}</span>
                 </div>
+                @if (canManageMembers(detail) && canRemoveMember(member)) {
+                  <button
+                    type="button"
+                    class="member-remove-btn"
+                    (click)="onRemoveMember(member.id)"
+                    [disabled]="removingMemberId() === member.id"
+                    [attr.aria-label]="'Remove ' + member.name + ' from project'"
+                  >
+                    @if (removingMemberId() === member.id) {
+                      Removing…
+                    } @else {
+                      Remove
+                    }
+                  </button>
+                }
               </li>
             }
           </ul>
