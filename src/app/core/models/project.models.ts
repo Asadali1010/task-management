@@ -7,6 +7,30 @@ export interface ProjectMetadata {
   status: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  viewerRole: ProjectRole;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectSummary[];
+}
+
+export interface ArchiveProjectResponse {
+  project: ProjectSummary;
+}
+
+export interface RestoreProjectResponse {
+  project: ProjectSummary;
 }
 
 export interface ProjectMember {
