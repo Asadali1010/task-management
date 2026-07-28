@@ -1,0 +1,509 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { DatePipe } from '@angular/common';
+import { Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
+
+import {
+  Task,
+  TaskDependency,
+  TaskHierarchyNode,
+  TaskHistoryEntry,
+  TaskStatus,
+  TaskTemplate,
+} from '../../core/models/project.models';
+import { ProjectService } from '../../core/services/project.service';
+
+interface FlatTaskRow {
+  node: TaskHierarchyNode;
+  depth: number;
+}
+
+@Component({
+  selector: 'app-project-tasks',
+  imports: [RouterLink, DatePipe, ReactiveFormsModule],
+  templateUrl: './project-tasks.html',
+  styleUrl: './project-tasks.css',
+})
+export class ProjectTasks implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly projectService = inject(ProjectService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly fb = inject(FormBuilder);
+
+  protected readonly isLoading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
+  protected readonly projectId = signal('');
+  protected readonly taskHierarchy = signal<TaskHierarchyNode[]>([]);
+  protected readonly flatTasks = signal<Task[]>([]);
+  protected readonly dependencies = signal<TaskDependency[]>([]);
+  protected readonly templates = signal<TaskTemplate[]>([]);
+  protected readonly selectedTaskIds = signal<Set<string>>(new Set());
+  protected readonly editingTaskId = signal<string | null>(null);
+  protected readonly subtaskParentId = signal<string | null>(null);
+  protected readonly historyTaskId = signal<string | null>(null);
+  protected readonly taskHistory = signal<TaskHistoryEntry[]>([]);
+  protected readonly isHistoryLoading = signal(false);
+  protected readonly isCreating = signal(false);
+  protected readonly isSaving = signal(false);
+  protected readonly isBulkActing = signal(false);
+  protected readonly actingTaskId = signal<string | null>(null);
+  protected readonly duplicateIncludeSubtasks = signal(false);
+
+  protected readonly flatRows = computed(() => this.flattenHierarchy(this.taskHierarchy()));
+  protected readonly selectedCount = computed(() => this.selectedTaskIds().size);
+  protected readonly hasSelection = computed(() => this.selectedCount() > 0);
+
+  protected readonly createForm = this.fb.nonNullable.group({
+    title: ['', Validators.required],
+    description: [''],
+    dueDate: [''],
+    status: ['open' as TaskStatus],
+    recurringEnabled: [false],
+    recurringFrequency: ['weekly' as 'daily' | 'weekly' | 'monthly'],
+    recurringInterval: [1, [Validators.min(1)]],
+  });
+
+  protected readonly editForm = this.fb.nonNullable.group({
+    title: ['', Validators.required],
+    description: [''],
+    dueDate: [''],
+    status: ['open' as TaskStatus],
+  });
+
+  protected readonly templateForm = this.fb.nonNullable.group({
+    templateId: ['', Validators.required],
+    title: [''],
+  });
+
+  ngOnInit(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('projectId');
+      if (!id) {
+        this.isLoading.set(false);
+        this.errorMessage.set('Project not found. Check the URL and try again.');
+        return;
+      }
+
+      this.projectId.set(id);
+      this.loadTasks(id);
+    });
+  }
+
+  protected retryLoad(): void {
+    const id = this.projectId();
+    if (id) {
+      this.loadTasks(id);
+    }
+  }
+
+  protected onCreateSubmit(): void {
+    if (this.createForm.invalid || this.isCreating()) {
+      this.createForm.markAllAsTouched();
+      return;
+    }
+
+    const projectId = this.projectId();
+    if (!projectId) {
+      return;
+    }
+
+    this.isCreating.set(true);
+    this.actionError.set(null);
+    const raw = this.createForm.getRawValue();
+    const parentTaskId = this.subtaskParentId();
+
+    this.projectService
+      .createTask(projectId, {
+        title: raw.title,
+        description: raw.description || undefined,
+        dueDate: raw.dueDate ? this.toIsoDueDate(raw.dueDate) : null,
+        status: raw.status,
+        parentTaskId,
+        recurringRule: raw.recurringEnabled
+          ? {
+              frequency: raw.recurringFrequency,
+              interval: raw.recurringInterval,
+              endDate: null,
+            }
+          : null,
+      })
+      .subscribe({
+        next: () => {
+          this.isCreating.set(false);
+          this.subtaskParentId.set(null);
+          this.createForm.reset({
+            title: '',
+            description: '',
+            dueDate: '',
+            status: 'open',
+            recurringEnabled: false,
+            recurringFrequency: 'weekly',
+            recurringInterval: 1,
+          });
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.isCreating.set(false);
+          this.actionError.set('Unable to create task. Try again in a moment.');
+        },
+      });
+  }
+
+  protected startSubtask(parentId: string): void {
+    this.subtaskParentId.set(parentId);
+    this.editingTaskId.set(null);
+    this.historyTaskId.set(null);
+    this.createForm.patchValue({ title: '', description: '', dueDate: '', status: 'open' });
+  }
+
+  protected cancelSubtask(): void {
+    this.subtaskParentId.set(null);
+  }
+
+  protected startEdit(task: Task): void {
+    this.editingTaskId.set(task.id);
+    this.subtaskParentId.set(null);
+    this.historyTaskId.set(null);
+    this.editForm.patchValue({
+      title: task.title,
+      description: task.description ?? '',
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+      status: task.status,
+    });
+  }
+
+  protected cancelEdit(): void {
+    this.editingTaskId.set(null);
+  }
+
+  protected onEditSubmit(): void {
+    if (this.editForm.invalid || this.isSaving()) {
+      this.editForm.markAllAsTouched();
+      return;
+    }
+
+    const projectId = this.projectId();
+    const taskId = this.editingTaskId();
+    if (!projectId || !taskId) {
+      return;
+    }
+
+    this.isSaving.set(true);
+    this.actionError.set(null);
+    const raw = this.editForm.getRawValue();
+
+    this.projectService
+      .updateTask(projectId, taskId, {
+        title: raw.title,
+        description: raw.description,
+        dueDate: raw.dueDate ? this.toIsoDueDate(raw.dueDate) : null,
+        status: raw.status,
+      })
+      .subscribe({
+        next: () => {
+          this.isSaving.set(false);
+          this.editingTaskId.set(null);
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.isSaving.set(false);
+          this.actionError.set('Unable to update task. Try again in a moment.');
+        },
+      });
+  }
+
+  protected deleteTask(taskId: string): void {
+    const projectId = this.projectId();
+    if (!projectId || this.actingTaskId()) {
+      return;
+    }
+
+    this.actingTaskId.set(taskId);
+    this.actionError.set(null);
+
+    this.projectService.deleteTask(projectId, taskId).subscribe({
+      next: () => {
+        this.actingTaskId.set(null);
+        this.selectedTaskIds.update((current) => {
+          const next = new Set(current);
+          next.delete(taskId);
+          return next;
+        });
+        if (this.historyTaskId() === taskId) {
+          this.historyTaskId.set(null);
+        }
+        if (this.editingTaskId() === taskId) {
+          this.editingTaskId.set(null);
+        }
+        this.reloadTasks(projectId);
+      },
+      error: () => {
+        this.actingTaskId.set(null);
+        this.actionError.set('Unable to delete task. Try again in a moment.');
+      },
+    });
+  }
+
+  protected duplicateTask(taskId: string): void {
+    const projectId = this.projectId();
+    if (!projectId || this.actingTaskId()) {
+      return;
+    }
+
+    this.actingTaskId.set(taskId);
+    this.actionError.set(null);
+
+    this.projectService
+      .duplicateTask(projectId, taskId, {
+        includeSubtasks: this.duplicateIncludeSubtasks(),
+      })
+      .subscribe({
+        next: () => {
+          this.actingTaskId.set(null);
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.actingTaskId.set(null);
+          this.actionError.set('Unable to duplicate task. Try again in a moment.');
+        },
+      });
+  }
+
+  protected onTemplateSubmit(): void {
+    if (this.templateForm.invalid || this.isCreating()) {
+      this.templateForm.markAllAsTouched();
+      return;
+    }
+
+    const projectId = this.projectId();
+    if (!projectId) {
+      return;
+    }
+
+    this.isCreating.set(true);
+    this.actionError.set(null);
+    const { templateId, title } = this.templateForm.getRawValue();
+
+    this.projectService
+      .createTaskFromTemplate(projectId, {
+        templateId,
+        title: title || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.isCreating.set(false);
+          this.templateForm.reset({ templateId: '', title: '' });
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.isCreating.set(false);
+          this.actionError.set('Unable to create task from template. Try again in a moment.');
+        },
+      });
+  }
+
+  protected toggleTaskSelection(taskId: string, selected: boolean): void {
+    this.selectedTaskIds.update((current) => {
+      const next = new Set(current);
+      if (selected) {
+        next.add(taskId);
+      } else {
+        next.delete(taskId);
+      }
+      return next;
+    });
+  }
+
+  protected isTaskSelected(taskId: string): boolean {
+    return this.selectedTaskIds().has(taskId);
+  }
+
+  protected toggleSelectAll(checked: boolean): void {
+    if (checked) {
+      this.selectedTaskIds.set(new Set(this.flatTasks().map((task) => task.id)));
+    } else {
+      this.selectedTaskIds.set(new Set());
+    }
+  }
+
+  protected bulkUpdateStatus(status: TaskStatus): void {
+    this.runBulkAction({ action: 'update_status', status });
+  }
+
+  protected bulkDelete(): void {
+    this.runBulkAction({ action: 'delete' });
+  }
+
+  protected openHistory(taskId: string): void {
+    const projectId = this.projectId();
+    if (!projectId) {
+      return;
+    }
+
+    this.historyTaskId.set(taskId);
+    this.editingTaskId.set(null);
+    this.isHistoryLoading.set(true);
+    this.taskHistory.set([]);
+
+    this.projectService.getTaskHistory(projectId, taskId).subscribe({
+      next: (response) => {
+        this.taskHistory.set(response.history);
+        this.isHistoryLoading.set(false);
+      },
+      error: () => {
+        this.isHistoryLoading.set(false);
+        this.actionError.set('Unable to load task history. Try again in a moment.');
+      },
+    });
+  }
+
+  protected closeHistory(): void {
+    this.historyTaskId.set(null);
+    this.taskHistory.set([]);
+  }
+
+  protected isTaskBlocked(taskId: string): boolean {
+    const taskMap = new Map(this.flatTasks().map((task) => [task.id, task]));
+    return this.dependencies()
+      .filter((dependency) => dependency.taskId === taskId)
+      .some((dependency) => {
+        const blocker = taskMap.get(dependency.dependsOnTaskId);
+        return blocker !== undefined && blocker.status !== 'done';
+      });
+  }
+
+  protected getBlockingTaskTitles(taskId: string): string {
+    const taskMap = new Map(this.flatTasks().map((task) => [task.id, task]));
+    return this.dependencies()
+      .filter((dependency) => dependency.taskId === taskId)
+      .map((dependency) => taskMap.get(dependency.dependsOnTaskId))
+      .filter((task): task is Task => task !== undefined && task.status !== 'done')
+      .map((task) => task.title)
+      .join(', ');
+  }
+
+  protected formatRecurring(task: Task): string | null {
+    if (!task.recurringRule) {
+      return null;
+    }
+
+    const { frequency, interval } = task.recurringRule;
+    const unit = interval === 1 ? frequency.replace('ly', '') : `${frequency.replace('ly', '')}s`;
+    return interval === 1 ? `Repeats ${frequency}` : `Every ${interval} ${unit}`;
+  }
+
+  protected formatStatus(status: TaskStatus): string {
+    return status === 'done' ? 'Done' : 'Open';
+  }
+
+  protected formatHistoryAction(action: TaskHistoryEntry['action']): string {
+    return action.replace(/_/g, ' ');
+  }
+
+  protected getCreateHeading(): string {
+    const parentId = this.subtaskParentId();
+    if (!parentId) {
+      return 'Create task';
+    }
+
+    const parent = this.flatTasks().find((task) => task.id === parentId);
+    return parent ? `Add subtask to “${parent.title}”` : 'Add subtask';
+  }
+
+  private runBulkAction(options: { action: 'delete' } | { action: 'update_status'; status: TaskStatus }): void {
+    const projectId = this.projectId();
+    const taskIds = [...this.selectedTaskIds()];
+    if (!projectId || taskIds.length === 0 || this.isBulkActing()) {
+      return;
+    }
+
+    this.isBulkActing.set(true);
+    this.actionError.set(null);
+
+    this.projectService
+      .bulkTaskAction(projectId, {
+        taskIds,
+        action: options.action,
+        ...(options.action === 'update_status' ? { status: options.status } : {}),
+      })
+      .subscribe({
+        next: () => {
+          this.isBulkActing.set(false);
+          this.selectedTaskIds.set(new Set());
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.isBulkActing.set(false);
+          this.actionError.set('Bulk action failed. Try again in a moment.');
+        },
+      });
+  }
+
+  private loadTasks(projectId: string): void {
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
+    this.taskHierarchy.set([]);
+    this.selectedTaskIds.set(new Set());
+
+    forkJoin({
+      hierarchy: this.projectService.getTaskHierarchy(projectId),
+      flat: this.projectService.listTasks(projectId),
+      templates: this.projectService.listTaskTemplates(projectId),
+      dependencies: this.projectService.listTaskDependencies(projectId),
+    }).subscribe({
+      next: ({ hierarchy, flat, templates, dependencies }) => {
+        this.taskHierarchy.set(hierarchy.tasks);
+        this.flatTasks.set(flat.tasks);
+        this.templates.set(templates.templates);
+        this.dependencies.set(dependencies.dependencies);
+        this.isLoading.set(false);
+        this.errorMessage.set(null);
+      },
+      error: (error) => {
+        this.isLoading.set(false);
+        this.errorMessage.set(this.getLoadErrorMessage(error));
+      },
+    });
+  }
+
+  private reloadTasks(projectId: string): void {
+    forkJoin({
+      hierarchy: this.projectService.getTaskHierarchy(projectId),
+      flat: this.projectService.listTasks(projectId),
+      dependencies: this.projectService.listTaskDependencies(projectId),
+    }).subscribe({
+      next: ({ hierarchy, flat, dependencies }) => {
+        this.taskHierarchy.set(hierarchy.tasks);
+        this.flatTasks.set(flat.tasks);
+        this.dependencies.set(dependencies.dependencies);
+      },
+    });
+  }
+
+  private flattenHierarchy(nodes: TaskHierarchyNode[], depth = 0): FlatTaskRow[] {
+    return nodes.flatMap((node) => [
+      { node, depth },
+      ...this.flattenHierarchy(node.subtasks, depth + 1),
+    ]);
+  }
+
+  private getLoadErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse && error.status === 403) {
+      return 'You do not have permission to view tasks for this project.';
+    }
+
+    if (error instanceof HttpErrorResponse && error.status === 404) {
+      return 'Project not found. Check the URL and try again.';
+    }
+
+    return 'Unable to load tasks. Refresh the page or try again in a moment.';
+  }
+
+  private toIsoDueDate(dateInput: string): string {
+    return `${dateInput}T00:00:00.000Z`;
+  }
+}

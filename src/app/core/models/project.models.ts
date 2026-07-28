@@ -121,11 +121,128 @@ export interface ProjectAnalyticsDateRange {
 
 export type TaskStatus = 'done' | 'open';
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly';
+
+export interface RecurringRule {
+  frequency: RecurringFrequency;
+  interval: number;
+  endDate: string | null;
+}
+
+export interface TaskDependency {
+  id: string;
+  taskId: string;
+  dependsOnTaskId: string;
+}
+
+export type TaskHistoryAction =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'duplicated'
+  | 'status_changed'
+  | 'dependency_added'
+  | 'dependency_removed';
+
+export interface TaskHistoryEntry {
+  id: string;
+  taskId: string;
+  action: TaskHistoryAction;
+  description: string;
+  actorName: string;
+  createdAt: string;
+  changes?: Record<string, { from: unknown; to: unknown }>;
+}
+
 export interface Task {
   id: string;
   title: string;
   status: TaskStatus;
   milestoneId: string | null;
+  parentTaskId?: string | null;
+  description?: string;
+  dueDate?: string | null;
+  recurringRule?: RecurringRule | null;
+}
+
+export interface TaskHierarchyNode extends Task {
+  subtasks: TaskHierarchyNode[];
+}
+
+export interface TaskTemplate {
+  id: string;
+  title: string;
+  description: string;
+  defaultStatus: TaskStatus;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  status?: TaskStatus;
+  milestoneId?: string | null;
+  parentTaskId?: string | null;
+  description?: string;
+  dueDate?: string | null;
+  recurringRule?: RecurringRule | null;
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  status?: TaskStatus;
+  milestoneId?: string | null;
+  parentTaskId?: string | null;
+  description?: string;
+  dueDate?: string | null;
+  recurringRule?: RecurringRule | null;
+}
+
+export interface DuplicateTaskRequest {
+  title?: string;
+  includeSubtasks?: boolean;
+}
+
+export interface CreateTaskFromTemplateRequest {
+  templateId: string;
+  title?: string;
+  milestoneId?: string | null;
+  parentTaskId?: string | null;
+}
+
+export type BulkTaskAction = 'delete' | 'update_status';
+
+export interface BulkTaskActionRequest {
+  taskIds: string[];
+  action: BulkTaskAction;
+  status?: TaskStatus;
+}
+
+export interface BulkTaskActionResponse {
+  affectedCount: number;
+  tasks: Task[];
+}
+
+export interface AddTaskDependencyRequest {
+  dependsOnTaskId: string;
+}
+
+export interface TaskHierarchyResponse {
+  tasks: TaskHierarchyNode[];
+}
+
+export interface TaskTemplateListResponse {
+  templates: TaskTemplate[];
+}
+
+export interface TaskHistoryResponse {
+  history: TaskHistoryEntry[];
+}
+
+export interface TaskDependencyResponse {
+  dependency: TaskDependency;
+}
+
+export interface TaskDependencyListResponse {
+  dependencies: TaskDependency[];
 }
 
 export interface Milestone {

@@ -411,4 +411,256 @@ describe('ProjectService', () => {
     expect(req.request.body).toEqual({ milestoneId: 'ms-1' });
     req.flush(mockLinkedTask);
   });
+
+  const mockTask: Task = {
+    id: 'task-1',
+    title: 'Update homepage hero',
+    status: 'done',
+    milestoneId: 'ms-1',
+  };
+
+  it('should fetch a single task by id', () => {
+    service.getTask('proj-1', 'task-1').subscribe((response) => {
+      expect(response).toEqual(mockTask);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-1`);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockTask);
+  });
+
+  it('should create a task with title and optional fields', () => {
+    const createBody = {
+      title: 'New task',
+      description: 'Details',
+      status: 'open' as const,
+      parentTaskId: 'task-3',
+      dueDate: '2026-08-01T00:00:00.000Z',
+      recurringRule: null,
+    };
+    const createdTask: Task = {
+      id: 'task-100',
+      title: 'New task',
+      status: 'open',
+      milestoneId: null,
+      parentTaskId: 'task-3',
+    };
+
+    service.createTask('proj-1', createBody).subscribe((response) => {
+      expect(response).toEqual(createdTask);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(createBody);
+    req.flush(createdTask);
+  });
+
+  it('should update a task with patch body', () => {
+    const updateBody = {
+      title: 'Updated hero',
+      status: 'done' as const,
+    };
+    const updatedTask: Task = { ...mockTask, title: 'Updated hero' };
+
+    service.updateTask('proj-1', 'task-1', updateBody).subscribe((response) => {
+      expect(response).toEqual(updatedTask);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual(updateBody);
+    req.flush(updatedTask);
+  });
+
+  it('should delete a task by id', () => {
+    let completed = false;
+    service.deleteTask('proj-1', 'task-1').subscribe({
+      next: () => {
+        completed = true;
+      },
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    expect(completed).toBe(true);
+  });
+
+  it('should duplicate a task with optional includeSubtasks flag', () => {
+    const duplicateBody = { includeSubtasks: true };
+    const duplicatedTask: Task = {
+      id: 'task-101',
+      title: 'Update homepage hero (copy)',
+      status: 'done',
+      milestoneId: 'ms-1',
+    };
+
+    service.duplicateTask('proj-1', 'task-1', duplicateBody).subscribe((response) => {
+      expect(response).toEqual(duplicatedTask);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-1/duplicate`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(duplicateBody);
+    req.flush(duplicatedTask);
+  });
+
+  it('should fetch task hierarchy for a project', () => {
+    const hierarchyResponse = {
+      tasks: [
+        {
+          id: 'task-1',
+          title: 'Update homepage hero',
+          status: 'done' as const,
+          milestoneId: 'ms-1',
+          subtasks: [],
+        },
+      ],
+    };
+
+    service.getTaskHierarchy('proj-1').subscribe((response) => {
+      expect(response).toEqual(hierarchyResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/hierarchy`);
+    expect(req.request.method).toBe('GET');
+    req.flush(hierarchyResponse);
+  });
+
+  it('should list task dependencies for a project', () => {
+    const dependenciesResponse = {
+      dependencies: [{ id: 'dep-1', taskId: 'task-5', dependsOnTaskId: 'task-4' }],
+    };
+
+    service.listTaskDependencies('proj-1').subscribe((response) => {
+      expect(response).toEqual(dependenciesResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/dependencies`);
+    expect(req.request.method).toBe('GET');
+    req.flush(dependenciesResponse);
+  });
+
+  it('should list task templates for a project', () => {
+    const templatesResponse = {
+      templates: [
+        {
+          id: 'tpl-1',
+          title: 'Bug fix',
+          description: 'Investigate and resolve a reported defect.',
+          defaultStatus: 'open' as const,
+        },
+      ],
+    };
+
+    service.listTaskTemplates('proj-1').subscribe((response) => {
+      expect(response).toEqual(templatesResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/templates`);
+    expect(req.request.method).toBe('GET');
+    req.flush(templatesResponse);
+  });
+
+  it('should create a task from a template', () => {
+    const templateBody = { templateId: 'tpl-1', title: 'Custom bug fix' };
+    const fromTemplateTask: Task = {
+      id: 'task-102',
+      title: 'Custom bug fix',
+      status: 'open',
+      milestoneId: null,
+    };
+
+    service.createTaskFromTemplate('proj-1', templateBody).subscribe((response) => {
+      expect(response).toEqual(fromTemplateTask);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/templates`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(templateBody);
+    req.flush(fromTemplateTask);
+  });
+
+  it('should run a bulk task action', () => {
+    const bulkBody = {
+      taskIds: ['task-1', 'task-3'],
+      action: 'update_status' as const,
+      status: 'done' as const,
+    };
+    const bulkResponse = {
+      affectedCount: 2,
+      tasks: [mockTask],
+    };
+
+    service.bulkTaskAction('proj-1', bulkBody).subscribe((response) => {
+      expect(response).toEqual(bulkResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/bulk`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(bulkBody);
+    req.flush(bulkResponse);
+  });
+
+  it('should add a task dependency', () => {
+    const dependencyBody = { dependsOnTaskId: 'task-4' };
+    const dependencyResponse = {
+      dependency: { id: 'dep-2', taskId: 'task-5', dependsOnTaskId: 'task-4' },
+    };
+
+    service.addTaskDependency('proj-1', 'task-5', dependencyBody).subscribe((response) => {
+      expect(response).toEqual(dependencyResponse);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-5/dependencies`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(dependencyBody);
+    req.flush(dependencyResponse);
+  });
+
+  it('should remove a task dependency', () => {
+    let completed = false;
+    service.removeTaskDependency('proj-1', 'task-5', 'dep-1').subscribe({
+      next: () => {
+        completed = true;
+      },
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-5/dependencies/dep-1`,
+    );
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    expect(completed).toBe(true);
+  });
+
+  it('should fetch task history for a task', () => {
+    const historyResponse = {
+      history: [
+        {
+          id: 'hist-1',
+          taskId: 'task-1',
+          action: 'created' as const,
+          description: 'Created task "Update homepage hero"',
+          actorName: 'Asad Ali',
+          createdAt: '2026-07-01T00:00:00.000Z',
+        },
+      ],
+    };
+
+    service.getTaskHistory('proj-1', 'task-1').subscribe((response) => {
+      expect(response).toEqual(historyResponse);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-1/history`,
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(historyResponse);
+  });
 });

@@ -1,0 +1,486 @@
+<div class="project-tasks-page">
+  @if (isLoading() && taskHierarchy().length === 0) {
+    <div class="tasks-state" role="status" aria-live="polite">
+      <p class="tasks-state-message">Loading tasks…</p>
+    </div>
+  } @else if (errorMessage() && taskHierarchy().length === 0) {
+    <div class="tasks-state tasks-state-error" role="alert">
+      <h1 class="tasks-state-heading">Something went wrong</h1>
+      <p class="tasks-state-message">{{ errorMessage() }}</p>
+      @if (projectId()) {
+        <button type="button" class="tasks-btn tasks-btn-primary" (click)="retryLoad()">
+          Try again
+        </button>
+      }
+    </div>
+  } @else {
+    <header class="tasks-header" aria-labelledby="tasks-heading">
+      <div class="tasks-header-main">
+        <p class="tasks-eyebrow">Project tasks</p>
+        <h1 id="tasks-heading" class="tasks-title">Task management</h1>
+        <p class="tasks-description">
+          Organize work in hierarchy, track dependencies, and manage tasks with templates and bulk
+          actions.
+        </p>
+      </div>
+      <nav class="tasks-nav" aria-label="Project sections">
+        <a class="tasks-nav-link" [routerLink]="['/projects', projectId()]">Overview</a>
+        <a
+          class="tasks-nav-link tasks-nav-link-active"
+          [routerLink]="['/projects', projectId(), 'tasks']"
+          aria-current="page"
+        >
+          Tasks
+        </a>
+        <a class="tasks-nav-link" [routerLink]="['/projects', projectId(), 'milestones']">
+          Milestones
+        </a>
+      </nav>
+    </header>
+
+    @if (actionError()) {
+      <p class="tasks-inline-error" role="alert">{{ actionError() }}</p>
+    }
+
+    <section class="tasks-panel" aria-labelledby="create-heading">
+      <div class="tasks-panel-header-row">
+        <h2 id="create-heading" class="tasks-panel-heading">{{ getCreateHeading() }}</h2>
+        @if (subtaskParentId()) {
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-secondary"
+            (click)="cancelSubtask()"
+            aria-label="Cancel subtask creation"
+          >
+            Cancel subtask
+          </button>
+        }
+      </div>
+      <form
+        class="task-create-form"
+        [formGroup]="createForm"
+        (ngSubmit)="onCreateSubmit()"
+        novalidate
+      >
+        <div class="task-form-field">
+          <label for="task-title" class="task-form-label">Title</label>
+          <input
+            id="task-title"
+            type="text"
+            class="task-form-input"
+            formControlName="title"
+            autocomplete="off"
+          />
+        </div>
+        <div class="task-form-field">
+          <label for="task-description" class="task-form-label">Description</label>
+          <textarea
+            id="task-description"
+            class="task-form-textarea"
+            formControlName="description"
+            rows="2"
+          ></textarea>
+        </div>
+        <div class="task-form-row">
+          <div class="task-form-field">
+            <label for="task-due-date" class="task-form-label">Due date</label>
+            <input id="task-due-date" type="date" class="task-form-input" formControlName="dueDate" />
+          </div>
+          <div class="task-form-field">
+            <label for="task-status" class="task-form-label">Status</label>
+            <select id="task-status" class="task-form-input" formControlName="status">
+              <option value="open">Open</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+        <fieldset class="task-recurring-fieldset">
+          <legend class="task-form-label">Recurring schedule</legend>
+          <label class="task-checkbox-label">
+            <input type="checkbox" formControlName="recurringEnabled" />
+            Enable recurring task
+          </label>
+          @if (createForm.controls.recurringEnabled.value) {
+            <div class="task-form-row">
+              <div class="task-form-field">
+                <label for="task-recurring-frequency" class="task-form-label">Frequency</label>
+                <select
+                  id="task-recurring-frequency"
+                  class="task-form-input"
+                  formControlName="recurringFrequency"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div class="task-form-field">
+                <label for="task-recurring-interval" class="task-form-label">Interval</label>
+                <input
+                  id="task-recurring-interval"
+                  type="number"
+                  min="1"
+                  class="task-form-input"
+                  formControlName="recurringInterval"
+                />
+              </div>
+            </div>
+          }
+        </fieldset>
+        <button
+          type="submit"
+          class="tasks-btn tasks-btn-primary"
+          [disabled]="createForm.invalid || isCreating()"
+        >
+          @if (isCreating()) {
+            Creating…
+          } @else if (subtaskParentId()) {
+            Add subtask
+          } @else {
+            Create task
+          }
+        </button>
+      </form>
+    </section>
+
+    @if (templates().length > 0) {
+      <section class="tasks-panel" aria-labelledby="template-heading">
+        <h2 id="template-heading" class="tasks-panel-heading">Create from template</h2>
+        <form
+          class="task-template-form"
+          [formGroup]="templateForm"
+          (ngSubmit)="onTemplateSubmit()"
+          novalidate
+        >
+          <div class="task-form-field">
+            <label for="task-template" class="task-form-label">Template</label>
+            <select id="task-template" class="task-form-input" formControlName="templateId">
+              <option value="">Select a template…</option>
+              @for (template of templates(); track template.id) {
+                <option [value]="template.id">{{ template.title }}</option>
+              }
+            </select>
+          </div>
+          <div class="task-form-field">
+            <label for="task-template-title" class="task-form-label">Custom title (optional)</label>
+            <input
+              id="task-template-title"
+              type="text"
+              class="task-form-input"
+              formControlName="title"
+              autocomplete="off"
+            />
+          </div>
+          <button
+            type="submit"
+            class="tasks-btn tasks-btn-primary"
+            [disabled]="templateForm.invalid || isCreating()"
+          >
+            @if (isCreating()) {
+              Creating…
+            } @else {
+              Create from template
+            }
+          </button>
+        </form>
+      </section>
+    }
+
+    @if (hasSelection()) {
+      <section class="tasks-bulk-bar" aria-label="Bulk task actions">
+        <p class="tasks-bulk-count">{{ selectedCount() }} selected</p>
+        <div class="tasks-bulk-actions">
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-secondary"
+            (click)="bulkUpdateStatus('done')"
+            [disabled]="isBulkActing()"
+            aria-label="Mark selected tasks as done"
+          >
+            Mark done
+          </button>
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-secondary"
+            (click)="bulkUpdateStatus('open')"
+            [disabled]="isBulkActing()"
+            aria-label="Mark selected tasks as open"
+          >
+            Mark open
+          </button>
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-danger"
+            (click)="bulkDelete()"
+            [disabled]="isBulkActing()"
+            aria-label="Delete selected tasks"
+          >
+            @if (isBulkActing()) {
+              Working…
+            } @else {
+              Delete selected
+            }
+          </button>
+        </div>
+      </section>
+    }
+
+    <section class="tasks-panel" aria-labelledby="list-heading">
+      <div class="tasks-panel-header-row">
+        <h2 id="list-heading" class="tasks-panel-heading">All tasks</h2>
+        <div class="tasks-list-controls">
+          <label class="task-checkbox-label task-duplicate-options">
+            <input
+              type="checkbox"
+              [checked]="duplicateIncludeSubtasks()"
+              (change)="duplicateIncludeSubtasks.set($any($event.target).checked)"
+            />
+            Include subtasks when duplicating
+          </label>
+          <label class="task-checkbox-label tasks-select-all">
+            <input
+              type="checkbox"
+              [checked]="selectedCount() === flatTasks().length && flatTasks().length > 0"
+              (change)="toggleSelectAll($any($event.target).checked)"
+              aria-label="Select all tasks"
+            />
+            Select all
+          </label>
+        </div>
+      </div>
+
+      @if (flatRows().length === 0) {
+        <p class="tasks-empty">No tasks yet. Create one above to get started.</p>
+      } @else {
+        <ul class="task-list">
+          @for (row of flatRows(); track row.node.id) {
+            <li class="task-list-item" [style.--task-depth]="row.depth">
+              @if (editingTaskId() === row.node.id) {
+                <article class="task-card task-card-editing" [attr.aria-labelledby]="'edit-' + row.node.id">
+                  <h3 [id]="'edit-' + row.node.id" class="visually-hidden">
+                    Edit {{ row.node.title }}
+                  </h3>
+                  <form
+                    class="task-edit-form"
+                    [formGroup]="editForm"
+                    (ngSubmit)="onEditSubmit()"
+                    novalidate
+                  >
+                    <div class="task-form-field">
+                      <label [for]="'edit-title-' + row.node.id" class="task-form-label">Title</label>
+                      <input
+                        [id]="'edit-title-' + row.node.id"
+                        type="text"
+                        class="task-form-input"
+                        formControlName="title"
+                      />
+                    </div>
+                    <div class="task-form-field">
+                      <label [for]="'edit-description-' + row.node.id" class="task-form-label">
+                        Description
+                      </label>
+                      <textarea
+                        [id]="'edit-description-' + row.node.id"
+                        class="task-form-textarea"
+                        formControlName="description"
+                        rows="2"
+                      ></textarea>
+                    </div>
+                    <div class="task-form-row">
+                      <div class="task-form-field">
+                        <label [for]="'edit-due-' + row.node.id" class="task-form-label">Due date</label>
+                        <input
+                          [id]="'edit-due-' + row.node.id"
+                          type="date"
+                          class="task-form-input"
+                          formControlName="dueDate"
+                        />
+                      </div>
+                      <div class="task-form-field">
+                        <label [for]="'edit-status-' + row.node.id" class="task-form-label">Status</label>
+                        <select
+                          [id]="'edit-status-' + row.node.id"
+                          class="task-form-input"
+                          formControlName="status"
+                        >
+                          <option value="open">Open</option>
+                          <option value="done">Done</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        type="submit"
+                        class="tasks-btn tasks-btn-primary"
+                        [disabled]="editForm.invalid || isSaving()"
+                      >
+                        @if (isSaving()) {
+                          Saving…
+                        } @else {
+                          Save changes
+                        }
+                      </button>
+                      <button
+                        type="button"
+                        class="tasks-btn tasks-btn-secondary"
+                        (click)="cancelEdit()"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              } @else {
+                <article
+                  class="task-card"
+                  [class.task-card-blocked]="isTaskBlocked(row.node.id)"
+                  [class.task-card-done]="row.node.status === 'done'"
+                  [attr.aria-labelledby]="'task-title-' + row.node.id"
+                >
+                  <div class="task-card-main">
+                    <label class="task-checkbox-label task-select-label">
+                      <input
+                        type="checkbox"
+                        [checked]="isTaskSelected(row.node.id)"
+                        (change)="toggleTaskSelection(row.node.id, $any($event.target).checked)"
+                        [attr.aria-label]="'Select task ' + row.node.title"
+                      />
+                    </label>
+                    <div class="task-card-content">
+                      <div class="task-title-row">
+                        <h3 [id]="'task-title-' + row.node.id" class="task-card-title">
+                          {{ row.node.title }}
+                        </h3>
+                        <span
+                          class="task-status-badge"
+                          [class.task-status-badge-done]="row.node.status === 'done'"
+                        >
+                          {{ formatStatus(row.node.status) }}
+                        </span>
+                        @if (formatRecurring(row.node); as recurringLabel) {
+                          <span class="task-recurring-badge" [attr.title]="recurringLabel">
+                            Recurring
+                          </span>
+                        }
+                        @if (isTaskBlocked(row.node.id)) {
+                          <span
+                            class="task-blocked-badge"
+                            [attr.title]="'Blocked by: ' + getBlockingTaskTitles(row.node.id)"
+                          >
+                            Blocked
+                          </span>
+                        }
+                      </div>
+                      @if (row.node.description) {
+                        <p class="task-description">{{ row.node.description }}</p>
+                      }
+                      @if (row.node.dueDate) {
+                        <p class="task-due-date">
+                          Due
+                          <time [dateTime]="row.node.dueDate">{{
+                            row.node.dueDate | date: 'mediumDate'
+                          }}</time>
+                        </p>
+                      }
+                      @if (isTaskBlocked(row.node.id)) {
+                        <p class="task-blocked-message" role="status">
+                          Waiting on: {{ getBlockingTaskTitles(row.node.id) }}
+                        </p>
+                      }
+                    </div>
+                  </div>
+                  <div class="task-card-actions">
+                    <button
+                      type="button"
+                      class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                      (click)="startEdit(row.node)"
+                      [attr.aria-label]="'Edit task ' + row.node.title"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                      (click)="startSubtask(row.node.id)"
+                      [attr.aria-label]="'Add subtask to ' + row.node.title"
+                    >
+                      Subtask
+                    </button>
+                    <button
+                      type="button"
+                      class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                      (click)="duplicateTask(row.node.id)"
+                      [disabled]="actingTaskId() === row.node.id"
+                      [attr.aria-label]="'Duplicate task ' + row.node.title"
+                    >
+                      @if (actingTaskId() === row.node.id) {
+                        Duplicating…
+                      } @else {
+                        Duplicate
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                      (click)="openHistory(row.node.id)"
+                      [attr.aria-label]="'View history for ' + row.node.title"
+                    >
+                      History
+                    </button>
+                    <button
+                      type="button"
+                      class="tasks-btn tasks-btn-danger tasks-btn-sm"
+                      (click)="deleteTask(row.node.id)"
+                      [disabled]="actingTaskId() === row.node.id"
+                      [attr.aria-label]="'Delete task ' + row.node.title"
+                    >
+                      @if (actingTaskId() === row.node.id) {
+                        Deleting…
+                      } @else {
+                        Delete
+                      }
+                    </button>
+                  </div>
+                </article>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (historyTaskId(); as activeHistoryId) {
+      <aside class="tasks-history-panel" aria-labelledby="history-heading" role="complementary">
+        <div class="tasks-history-header">
+          <h2 id="history-heading" class="tasks-panel-heading">Task history</h2>
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+            (click)="closeHistory()"
+            aria-label="Close task history panel"
+          >
+            Close
+          </button>
+        </div>
+        @if (isHistoryLoading()) {
+          <p class="tasks-state-message" role="status" aria-live="polite">Loading history…</p>
+        } @else if (taskHistory().length === 0) {
+          <p class="tasks-empty">No history entries for this task yet.</p>
+        } @else {
+          <ol class="task-history-list">
+            @for (entry of taskHistory(); track entry.id) {
+              <li class="task-history-item">
+                <p class="task-history-action">{{ formatHistoryAction(entry.action) }}</p>
+                <p class="task-history-description">{{ entry.description }}</p>
+                <p class="task-history-meta">
+                  {{ entry.actorName }} ·
+                  <time [dateTime]="entry.createdAt">{{ entry.createdAt | date: 'medium' }}</time>
+                </p>
+              </li>
+            }
+          </ol>
+        }
+      </aside>
+    }
+  }
+</div>
