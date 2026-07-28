@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 import {
   ArchiveProjectResponse,
   InviteMemberResponse,
+  ProjectActivityPageResponse,
   ProjectAnalytics,
   ProjectDetail,
   ProjectListResponse,
@@ -174,6 +175,48 @@ describe('ProjectService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1`);
     expect(req.request.method).toBe('GET');
     req.flush(mockProjectDetail);
+  });
+
+  const mockProjectActivityPage: ProjectActivityPageResponse = {
+    activities: [
+      {
+        id: 'act-1',
+        type: 'task_completed',
+        description: 'Completed task "Update homepage hero"',
+        actorName: 'Jane Doe',
+        createdAt: '2026-07-28T09:00:00Z',
+      },
+      {
+        id: 'act-2',
+        type: 'task_moved',
+        description: 'Alex moved Task X to Done',
+        actorName: 'Alex Rivera',
+        createdAt: '2026-07-27T16:30:00Z',
+      },
+    ],
+    page: 1,
+    pageSize: 20,
+    totalCount: 42,
+    hasMore: true,
+  };
+
+  it('should fetch paginated project activity with page and pageSize params', () => {
+    service.getProjectActivity('proj-1', { page: 1, pageSize: 20 }).subscribe((response) => {
+      expect(response.activities).toEqual(mockProjectActivityPage.activities);
+      expect(response.page).toBe(mockProjectActivityPage.page);
+      expect(response.pageSize).toBe(mockProjectActivityPage.pageSize);
+      expect(response.totalCount).toBe(mockProjectActivityPage.totalCount);
+      expect(response.hasMore).toBe(mockProjectActivityPage.hasMore);
+    });
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === `${environment.apiUrl}/projects/proj-1/activity` &&
+        request.params.get('page') === '1' &&
+        request.params.get('pageSize') === '20',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(mockProjectActivityPage);
   });
 
   const mockProjectAnalytics: ProjectAnalytics = {

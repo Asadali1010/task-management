@@ -566,39 +566,6 @@
   cursor: not-allowed;
 }
 
-.activity-feed {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pd-md);
-}
-
-.activity-item {
-  padding-bottom: var(--pd-md);
-  border-bottom: 1px solid var(--pd-border);
-}
-
-.activity-item:last-child {
-  padding-bottom: 0;
-  border-bottom: none;
-}
-
-.activity-description {
-  margin: 0 0 var(--pd-xs);
-  font-weight: 500;
-}
-
-.activity-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pd-sm) var(--pd-md);
-  margin: 0;
-  font-size: var(--pd-fs-sm);
-  color: var(--pd-muted);
-}
-
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
