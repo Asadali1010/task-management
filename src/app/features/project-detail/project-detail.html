@@ -1,0 +1,128 @@
+<div class="project-detail-page">
+  @if (isLoading()) {
+    <div class="project-state" role="status" aria-live="polite">
+      <p class="project-state-message">Loading project details…</p>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="project-state project-state-error" role="alert">
+      <h1 class="project-state-heading">Something went wrong</h1>
+      <p class="project-state-message">{{ errorMessage() }}</p>
+      @if (projectId()) {
+        <button type="button" class="project-retry-btn" (click)="retryLoad()">Try again</button>
+      }
+    </div>
+  } @else if (project(); as detail) {
+    <header class="project-header" aria-labelledby="project-name-heading">
+      <div class="project-header-main">
+        <p class="project-eyebrow">Project overview</p>
+        <h1 id="project-name-heading" class="project-title">{{ detail.metadata.name }}</h1>
+        @if (detail.metadata.description) {
+          <p class="project-description">{{ detail.metadata.description }}</p>
+        }
+      </div>
+      <dl class="project-meta-list">
+        <div class="project-meta-item">
+          <dt>Status</dt>
+          <dd>
+            <span class="project-status-badge">{{ formatStatus(detail.metadata.status) }}</span>
+          </dd>
+        </div>
+        <div class="project-meta-item">
+          <dt>Created</dt>
+          <dd>{{ detail.metadata.createdAt | date: 'mediumDate' }}</dd>
+        </div>
+        <div class="project-meta-item">
+          <dt>Last updated</dt>
+          <dd>{{ detail.metadata.updatedAt | date: 'mediumDate' }}</dd>
+        </div>
+      </dl>
+    </header>
+
+    <nav class="project-nav" aria-label="Project sections">
+      <a
+        class="project-nav-link"
+        [routerLink]="['/projects', projectId(), 'tasks']"
+      >
+        Tasks
+      </a>
+      <a
+        class="project-nav-link"
+        [routerLink]="['/projects', projectId(), 'milestones']"
+      >
+        Milestones
+      </a>
+      <a
+        class="project-nav-link"
+        [routerLink]="['/projects', projectId(), 'settings']"
+      >
+        Settings
+      </a>
+    </nav>
+
+    <div class="project-detail-grid">
+      <section class="project-panel project-members" aria-labelledby="members-heading">
+        <h2 id="members-heading" class="project-panel-heading">Team members</h2>
+        @if (detail.members.length === 0) {
+          <p class="project-empty">No members yet. Invite teammates from project settings.</p>
+        } @else {
+          <ul class="member-list">
+            @for (member of detail.members; track member.id) {
+              <li class="member-item">
+                <span class="member-avatar" aria-hidden="true">{{ getInitials(member.name) }}</span>
+                <div class="member-info">
+                  <span class="member-name">{{ member.name }}</span>
+                  <span class="member-role">{{ member.role }}</span>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="project-panel project-activity" aria-labelledby="activity-heading">
+        <h2 id="activity-heading" class="project-panel-heading">Recent activity</h2>
+        @if (detail.recentActivity.length === 0) {
+          <p class="project-empty">No recent activity. Updates will appear here as work progresses.</p>
+        } @else {
+          <ol class="activity-feed">
+            @for (item of detail.recentActivity; track item.id) {
+              <li class="activity-item">
+                <p class="activity-description">{{ item.description }}</p>
+                <p class="activity-meta">
+                  <span>{{ item.actorName }}</span>
+                  <time [dateTime]="item.createdAt">{{ item.createdAt | date: 'medium' }}</time>
+                </p>
+              </li>
+            }
+          </ol>
+        }
+      </section>
+
+      <section class="project-panel project-metrics" aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading" class="project-panel-heading">Key metrics</h2>
+        <dl class="metrics-grid">
+          <div class="metric-item">
+            <dt>Total tasks</dt>
+            <dd>{{ detail.metrics.totalTasks }}</dd>
+          </div>
+          <div class="metric-item">
+            <dt>Completed</dt>
+            <dd>{{ detail.metrics.completedTasks }}</dd>
+          </div>
+          <div class="metric-item">
+            <dt>Open</dt>
+            <dd>{{ detail.metrics.openTasks }}</dd>
+          </div>
+          <div class="metric-item">
+            <dt>Overdue</dt>
+            <dd>{{ detail.metrics.overdueTasks }}</dd>
+          </div>
+          <div class="metric-item">
+            <dt>Members</dt>
+            <dd>{{ detail.metrics.memberCount }}</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
+  }
+</div>
