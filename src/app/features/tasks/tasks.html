@@ -1,9 +1,104 @@
-<div class="feature-page">
-  <header class="feature-header" aria-labelledby="tasks-heading">
-    <p class="feature-eyebrow">Workspace</p>
-    <h1 id="tasks-heading" class="feature-title">Tasks</h1>
-    <p class="feature-description">
-      Track and manage tasks across your projects. Full task views will appear here soon.
-    </p>
-  </header>
+<div class="workspace-tasks-page">
+  @if (isLoading() && workspaceTasks().length === 0) {
+    <div class="tasks-state" role="status" aria-live="polite">
+      <p class="tasks-state-message">Loading workspace tasks…</p>
+    </div>
+  } @else if (errorMessage()) {
+    <div class="tasks-state tasks-state-error" role="alert">
+      <h1 class="tasks-state-heading">Something went wrong</h1>
+      <p class="tasks-state-message">{{ errorMessage() }}</p>
+      <button type="button" class="tasks-btn tasks-btn-primary" (click)="retryLoad()">Try again</button>
+    </div>
+  } @else {
+    <header class="tasks-header" aria-labelledby="tasks-heading">
+      <p class="tasks-eyebrow">Workspace</p>
+      <h1 id="tasks-heading" class="tasks-title">Tasks</h1>
+      <p class="tasks-description">
+        All open work across your active projects. Open a task in its project for full management.
+      </p>
+    </header>
+
+    <section class="tasks-panel" aria-labelledby="filter-heading">
+      <h2 id="filter-heading" class="visually-hidden">Filter tasks by status</h2>
+      <div class="tasks-filter-bar" role="group" aria-label="Filter by status">
+        <button
+          type="button"
+          class="tasks-filter-btn"
+          [class.tasks-filter-btn-active]="statusFilter() === 'all'"
+          (click)="setStatusFilter('all')"
+          [attr.aria-pressed]="statusFilter() === 'all'"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          class="tasks-filter-btn"
+          [class.tasks-filter-btn-active]="statusFilter() === 'open'"
+          (click)="setStatusFilter('open')"
+          [attr.aria-pressed]="statusFilter() === 'open'"
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          class="tasks-filter-btn"
+          [class.tasks-filter-btn-active]="statusFilter() === 'done'"
+          (click)="setStatusFilter('done')"
+          [attr.aria-pressed]="statusFilter() === 'done'"
+        >
+          Done
+        </button>
+      </div>
+    </section>
+
+    <section class="tasks-panel" aria-labelledby="workspace-list-heading">
+      <h2 id="workspace-list-heading" class="tasks-panel-heading">Tasks across projects</h2>
+
+      @if (filteredTasks().length === 0) {
+        <p class="tasks-empty">No tasks match the current filter.</p>
+      } @else {
+        <ul class="workspace-task-list">
+          @for (row of filteredTasks(); track trackRow($index, row)) {
+            <li>
+              <article
+                class="workspace-task-card"
+                [class.workspace-task-card-done]="row.task.status === 'done'"
+                [attr.aria-labelledby]="'ws-task-' + row.task.id"
+              >
+                <div class="workspace-task-main">
+                  <h3 [id]="'ws-task-' + row.task.id" class="workspace-task-title">
+                    {{ row.task.title }}
+                  </h3>
+                  <p class="workspace-task-project">
+                    Project:
+                    <a
+                      class="workspace-task-project-link"
+                      [routerLink]="['/projects', row.project.id, 'tasks']"
+                      [attr.aria-label]="'Open tasks for project ' + row.project.name"
+                    >
+                      {{ row.project.name }}
+                    </a>
+                  </p>
+                  @if (row.task.dueDate) {
+                    <p class="workspace-task-due">
+                      Due
+                      <time [dateTime]="row.task.dueDate">{{
+                        row.task.dueDate | date: 'mediumDate'
+                      }}</time>
+                    </p>
+                  }
+                </div>
+                <span
+                  class="workspace-task-status"
+                  [class.workspace-task-status-done]="row.task.status === 'done'"
+                >
+                  {{ formatStatus(row.task.status) }}
+                </span>
+              </article>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
 </div>

@@ -3,7 +3,10 @@ import {
   ProjectDetail,
   ProjectMember,
   Task,
+  TaskDependency,
+  TaskHistoryEntry,
   TaskStatus,
+  TaskTemplate,
 } from '../models/project.models';
 
 export interface MockMilestoneRecord {
@@ -17,6 +20,9 @@ export interface MockProjectRecord {
   activityLog: ProjectActivity[];
   tasks: Task[];
   milestones: MockMilestoneRecord[];
+  taskTemplates: TaskTemplate[];
+  taskHistory: TaskHistoryEntry[];
+  taskDependencies: TaskDependency[];
 }
 
 function daysAgoIso(days: number): string {
@@ -36,8 +42,60 @@ function task(
   title: string,
   status: TaskStatus,
   milestoneId: string | null = null,
+  options: {
+    parentTaskId?: string | null;
+    description?: string;
+    dueDate?: string | null;
+    recurringRule?: Task['recurringRule'];
+  } = {},
 ): Task {
-  return { id, title, status, milestoneId };
+  const result: Task = { id, title, status, milestoneId };
+
+  if (options.parentTaskId !== undefined) {
+    result.parentTaskId = options.parentTaskId;
+  }
+  if (options.description !== undefined) {
+    result.description = options.description;
+  }
+  if (options.dueDate !== undefined) {
+    result.dueDate = options.dueDate;
+  }
+  if (options.recurringRule !== undefined) {
+    result.recurringRule = options.recurringRule;
+  }
+
+  return result;
+}
+
+function taskTemplate(
+  id: string,
+  title: string,
+  description: string,
+  defaultStatus: TaskStatus = 'open',
+): TaskTemplate {
+  return { id, title, description, defaultStatus };
+}
+
+function taskHistoryEntry(
+  id: string,
+  taskId: string,
+  action: TaskHistoryEntry['action'],
+  description: string,
+  actorName: string,
+  daysAgo: number,
+): TaskHistoryEntry {
+  return {
+    id,
+    taskId,
+    action,
+    description,
+    actorName,
+    createdAt: daysAgoIso(daysAgo),
+  };
+}
+
+function taskDependency(id: string, taskId: string, dependsOnTaskId: string): TaskDependency {
+  return { id, taskId, dependsOnTaskId };
 }
 
 function member(
@@ -128,6 +186,8 @@ export const seedProjects: Record<string, MockProjectRecord> = {
       task('task-1', 'Update homepage hero', 'done', 'ms-1'),
       task('task-2', 'Implement responsive navigation', 'done', 'ms-1'),
       task('task-3', 'Write launch blog post', 'open', 'ms-1'),
+      task('task-3a', 'Draft blog outline', 'done', 'ms-1', { parentTaskId: 'task-3' }),
+      task('task-3b', 'Review blog draft', 'open', 'ms-1', { parentTaskId: 'task-3' }),
       task('task-4', 'Migrate legacy blog content', 'done', 'ms-2'),
       task('task-5', 'Redirect old URLs', 'open', 'ms-2'),
       task('task-6', 'Audit accessibility', 'open', null),
@@ -135,6 +195,18 @@ export const seedProjects: Record<string, MockProjectRecord> = {
     milestones: [
       { id: 'ms-1', title: 'Homepage Launch', dueDate: daysFromNowIso(14) },
       { id: 'ms-2', title: 'Content Migration', dueDate: daysAgoIso(10) },
+    ],
+    taskTemplates: [
+      taskTemplate('tpl-1', 'Bug fix', 'Investigate and resolve a reported defect.', 'open'),
+      taskTemplate('tpl-2', 'Design review', 'Review designs with stakeholders before implementation.', 'open'),
+    ],
+    taskHistory: [
+      taskHistoryEntry('hist-1', 'task-1', 'created', 'Created task "Update homepage hero"', 'Asad Ali', 14),
+      taskHistoryEntry('hist-2', 'task-1', 'status_changed', 'Marked task as done', 'Asad Ali', 7),
+      taskHistoryEntry('hist-3', 'task-3', 'created', 'Created task "Write launch blog post"', 'Priya Nair', 5),
+    ],
+    taskDependencies: [
+      taskDependency('dep-1', 'task-5', 'task-4'),
     ],
   },
   'proj-2': {
@@ -170,6 +242,15 @@ export const seedProjects: Record<string, MockProjectRecord> = {
     milestones: [
       { id: 'ms-3', title: 'Beta Release', dueDate: daysFromNowIso(21) },
     ],
+    taskTemplates: [
+      taskTemplate('tpl-3', 'Feature spike', 'Time-boxed exploration of a new feature idea.', 'open'),
+    ],
+    taskHistory: [
+      taskHistoryEntry('hist-4', 'task-7', 'created', 'Created task "Build onboarding flow"', 'Asad Ali', 10),
+    ],
+    taskDependencies: [
+      taskDependency('dep-2', 'task-9', 'task-8'),
+    ],
   },
   'proj-3': {
     detail: {
@@ -203,5 +284,8 @@ export const seedProjects: Record<string, MockProjectRecord> = {
     milestones: [
       { id: 'ms-4', title: 'Data Cutover', dueDate: daysAgoIso(90) },
     ],
+    taskTemplates: [],
+    taskHistory: [],
+    taskDependencies: [],
   },
 };

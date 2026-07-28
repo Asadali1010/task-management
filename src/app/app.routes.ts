@@ -33,6 +33,11 @@ export const routes: Routes = [
               import('./features/project-detail/project-detail').then((m) => m.ProjectDetail),
           },
           {
+            path: 'tasks',
+            loadComponent: () =>
+              import('./features/project-tasks/project-tasks').then((m) => m.ProjectTasks),
+          },
+          {
             path: 'milestones',
             loadComponent: () =>
               import('./features/project-milestones/project-milestones').then(
