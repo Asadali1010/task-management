@@ -70,7 +70,17 @@
             class="task-form-input"
             formControlName="title"
             autocomplete="off"
+            [class.task-form-input-invalid]="
+              createForm.controls.title.touched && createForm.controls.title.invalid
+            "
+            [attr.aria-invalid]="
+              createForm.controls.title.touched && createForm.controls.title.invalid
+            "
+            aria-describedby="task-title-error"
           />
+          @if (createForm.controls.title.touched && createForm.controls.title.hasError('required')) {
+            <p id="task-title-error" class="task-form-error" role="alert">Title is required.</p>
+          }
         </div>
         <div class="task-form-field">
           <label for="task-description" class="task-form-label">Description</label>
@@ -79,12 +89,70 @@
             class="task-form-textarea"
             formControlName="description"
             rows="2"
+            [class.task-form-input-invalid]="
+              createForm.controls.description.touched && createForm.controls.description.invalid
+            "
+            [attr.aria-invalid]="
+              createForm.controls.description.touched && createForm.controls.description.invalid
+            "
+            aria-describedby="task-description-error"
           ></textarea>
+          @if (
+            createForm.controls.description.touched &&
+            createForm.controls.description.hasError('required')
+          ) {
+            <p id="task-description-error" class="task-form-error" role="alert">
+              Description is required.
+            </p>
+          }
+        </div>
+        <div class="task-form-field">
+          <label for="task-assignee" class="task-form-label">Assignee</label>
+          <select
+            id="task-assignee"
+            class="task-form-input"
+            formControlName="assigneeId"
+            [class.task-form-input-invalid]="
+              createForm.controls.assigneeId.touched && createForm.controls.assigneeId.invalid
+            "
+            [attr.aria-invalid]="
+              createForm.controls.assigneeId.touched && createForm.controls.assigneeId.invalid
+            "
+            aria-describedby="task-assignee-error"
+          >
+            <option value="">Select assignee…</option>
+            @for (member of projectMembers(); track member.id) {
+              <option [value]="member.id">{{ member.name }}</option>
+            }
+          </select>
+          @if (
+            createForm.controls.assigneeId.touched &&
+            createForm.controls.assigneeId.hasError('required')
+          ) {
+            <p id="task-assignee-error" class="task-form-error" role="alert">Assignee is required.</p>
+          }
         </div>
         <div class="task-form-row">
           <div class="task-form-field">
             <label for="task-due-date" class="task-form-label">Due date</label>
-            <input id="task-due-date" type="date" class="task-form-input" formControlName="dueDate" />
+            <input
+              id="task-due-date"
+              type="date"
+              class="task-form-input"
+              formControlName="dueDate"
+              [class.task-form-input-invalid]="
+                createForm.controls.dueDate.touched && createForm.controls.dueDate.invalid
+              "
+              [attr.aria-invalid]="
+                createForm.controls.dueDate.touched && createForm.controls.dueDate.invalid
+              "
+              aria-describedby="task-due-date-error"
+            />
+            @if (
+              createForm.controls.dueDate.touched && createForm.controls.dueDate.hasError('required')
+            ) {
+              <p id="task-due-date-error" class="task-form-error" role="alert">Due date is required.</p>
+            }
           </div>
           <div class="task-form-field">
             <label for="task-status" class="task-form-label">Status</label>
@@ -273,7 +341,21 @@
                         type="text"
                         class="task-form-input"
                         formControlName="title"
+                        [class.task-form-input-invalid]="
+                          editForm.controls.title.touched && editForm.controls.title.invalid
+                        "
+                        [attr.aria-invalid]="
+                          editForm.controls.title.touched && editForm.controls.title.invalid
+                        "
+                        [attr.aria-describedby]="'edit-title-error-' + row.node.id"
                       />
+                      @if (
+                        editForm.controls.title.touched && editForm.controls.title.hasError('required')
+                      ) {
+                        <p [id]="'edit-title-error-' + row.node.id" class="task-form-error" role="alert">
+                          Title is required.
+                        </p>
+                      }
                     </div>
                     <div class="task-form-field">
                       <label [for]="'edit-description-' + row.node.id" class="task-form-label">
@@ -284,7 +366,58 @@
                         class="task-form-textarea"
                         formControlName="description"
                         rows="2"
+                        [class.task-form-input-invalid]="
+                          editForm.controls.description.touched && editForm.controls.description.invalid
+                        "
+                        [attr.aria-invalid]="
+                          editForm.controls.description.touched && editForm.controls.description.invalid
+                        "
+                        [attr.aria-describedby]="'edit-description-error-' + row.node.id"
                       ></textarea>
+                      @if (
+                        editForm.controls.description.touched &&
+                        editForm.controls.description.hasError('required')
+                      ) {
+                        <p
+                          [id]="'edit-description-error-' + row.node.id"
+                          class="task-form-error"
+                          role="alert"
+                        >
+                          Description is required.
+                        </p>
+                      }
+                    </div>
+                    <div class="task-form-field">
+                      <label [for]="'edit-assignee-' + row.node.id" class="task-form-label">Assignee</label>
+                      <select
+                        [id]="'edit-assignee-' + row.node.id"
+                        class="task-form-input"
+                        formControlName="assigneeId"
+                        [class.task-form-input-invalid]="
+                          editForm.controls.assigneeId.touched && editForm.controls.assigneeId.invalid
+                        "
+                        [attr.aria-invalid]="
+                          editForm.controls.assigneeId.touched && editForm.controls.assigneeId.invalid
+                        "
+                        [attr.aria-describedby]="'edit-assignee-error-' + row.node.id"
+                      >
+                        <option value="">Select assignee…</option>
+                        @for (member of projectMembers(); track member.id) {
+                          <option [value]="member.id">{{ member.name }}</option>
+                        }
+                      </select>
+                      @if (
+                        editForm.controls.assigneeId.touched &&
+                        editForm.controls.assigneeId.hasError('required')
+                      ) {
+                        <p
+                          [id]="'edit-assignee-error-' + row.node.id"
+                          class="task-form-error"
+                          role="alert"
+                        >
+                          Assignee is required.
+                        </p>
+                      }
                     </div>
                     <div class="task-form-row">
                       <div class="task-form-field">
@@ -294,7 +427,22 @@
                           type="date"
                           class="task-form-input"
                           formControlName="dueDate"
+                          [class.task-form-input-invalid]="
+                            editForm.controls.dueDate.touched && editForm.controls.dueDate.invalid
+                          "
+                          [attr.aria-invalid]="
+                            editForm.controls.dueDate.touched && editForm.controls.dueDate.invalid
+                          "
+                          [attr.aria-describedby]="'edit-due-error-' + row.node.id"
                         />
+                        @if (
+                          editForm.controls.dueDate.touched &&
+                          editForm.controls.dueDate.hasError('required')
+                        ) {
+                          <p [id]="'edit-due-error-' + row.node.id" class="task-form-error" role="alert">
+                            Due date is required.
+                          </p>
+                        }
                       </div>
                       <div class="task-form-field">
                         <label [for]="'edit-status-' + row.node.id" class="task-form-label">Status</label>
@@ -374,6 +522,9 @@
                       @if (row.node.description) {
                         <p class="task-description">{{ row.node.description }}</p>
                       }
+                      <p class="task-assignee">
+                        Assigned to {{ getAssigneeName(row.node.assigneeId) }}
+                      </p>
                       @if (row.node.dueDate) {
                         <p class="task-due-date">
                           Due
@@ -443,6 +594,47 @@
                   </div>
                 </article>
               }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="tasks-panel tasks-deleted-panel" aria-labelledby="deleted-heading">
+      <h2 id="deleted-heading" class="tasks-panel-heading">Deleted tasks</h2>
+      <p class="tasks-deleted-context">
+        Recently deleted tasks can be restored within {{ deletedTaskGracePeriodDays }} days. After
+        that, they are permanently removed.
+      </p>
+      @if (deletedTasks().length === 0) {
+        <p class="tasks-empty">No recently deleted tasks.</p>
+      } @else {
+        <ul class="task-deleted-list">
+          @for (task of deletedTasks(); track task.id) {
+            <li class="task-deleted-item">
+              <div class="task-deleted-content">
+                <p class="task-deleted-title">{{ task.title }}</p>
+                @if (task.deletedAt) {
+                  <p class="task-deleted-meta">
+                    Deleted
+                    <time [dateTime]="task.deletedAt">{{ task.deletedAt | date: 'medium' }}</time>
+                    · Assigned to {{ getAssigneeName(task.assigneeId) }}
+                  </p>
+                }
+              </div>
+              <button
+                type="button"
+                class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                (click)="restoreDeletedTask(task.id)"
+                [disabled]="restoringTaskId() === task.id"
+                [attr.aria-label]="'Restore task ' + task.title"
+              >
+                @if (restoringTaskId() === task.id) {
+                  Restoring…
+                } @else {
+                  Restore
+                }
+              </button>
             </li>
           }
         </ul>

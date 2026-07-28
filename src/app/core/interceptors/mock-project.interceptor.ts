@@ -38,6 +38,10 @@ function notFound(url: string): Observable<never> {
   return throwError(() => new HttpErrorResponse({ status: 404, url, statusText: 'Not Found' }));
 }
 
+function badRequest(url: string): Observable<never> {
+  return throwError(() => new HttpErrorResponse({ status: 400, url, statusText: 'Bad Request' }));
+}
+
 function isLinkTaskToMilestoneBody(body: unknown): body is LinkTaskToMilestoneRequest {
   if (!body || typeof body !== 'object') {
     return false;
@@ -127,6 +131,12 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
     return tasks ? jsonResponse<TaskHierarchyResponse>({ tasks }) : notFound(req.url);
   }
 
+  const deletedTasksMatch = path.match(/^\/projects\/([^/]+)\/tasks\/deleted$/);
+  if (req.method === 'GET' && deletedTasksMatch) {
+    const tasks = mockStore.listDeletedTasks(deletedTasksMatch[1]);
+    return tasks ? jsonResponse<TaskListResponse>({ tasks }) : notFound(req.url);
+  }
+
   const taskDependenciesMatch = path.match(/^\/projects\/([^/]+)\/tasks\/dependencies$/);
   if (req.method === 'GET' && taskDependenciesMatch) {
     const dependencies = mockStore.listTaskDependencies(taskDependenciesMatch[1]);
@@ -163,14 +173,26 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
 
   if (req.method === 'POST' && tasksMatch) {
     const body = req.body as CreateTaskRequest;
-    const task = mockStore.createTask(tasksMatch[1], body);
-    return task ? jsonResponse(task) : notFound(req.url);
+    const result = mockStore.createTask(tasksMatch[1], body);
+    if (result.kind === 'success') {
+      return jsonResponse(result.task);
+    }
+    if (result.kind === 'validation_error') {
+      return badRequest(req.url);
+    }
+    return notFound(req.url);
   }
 
   const taskHistoryMatch = path.match(/^\/projects\/([^/]+)\/tasks\/([^/]+)\/history$/);
   if (req.method === 'GET' && taskHistoryMatch) {
     const history = mockStore.getTaskHistory(taskHistoryMatch[1], taskHistoryMatch[2]);
     return history ? jsonResponse<TaskHistoryResponse>({ history }) : notFound(req.url);
+  }
+
+  const restoreTaskMatch = path.match(/^\/projects\/([^/]+)\/tasks\/([^/]+)\/restore$/);
+  if (req.method === 'POST' && restoreTaskMatch) {
+    const task = mockStore.restoreTask(restoreTaskMatch[1], restoreTaskMatch[2]);
+    return task ? jsonResponse(task) : notFound(req.url);
   }
 
   const duplicateTaskMatch = path.match(/^\/projects\/([^/]+)\/tasks\/([^/]+)\/duplicate$/);
@@ -219,8 +241,14 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
     }
 
     const body = req.body as UpdateTaskRequest;
-    const task = mockStore.updateTask(taskMatch[1], taskMatch[2], body);
-    return task ? jsonResponse(task) : notFound(req.url);
+    const result = mockStore.updateTask(taskMatch[1], taskMatch[2], body);
+    if (result.kind === 'success') {
+      return jsonResponse(result.task);
+    }
+    if (result.kind === 'validation_error') {
+      return badRequest(req.url);
+    }
+    return notFound(req.url);
   }
 
   if (req.method === 'DELETE' && taskMatch) {

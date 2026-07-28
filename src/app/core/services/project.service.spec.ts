@@ -429,10 +429,11 @@ describe('ProjectService', () => {
     req.flush(mockTask);
   });
 
-  it('should create a task with title and optional fields', () => {
+  it('should create a task with assigneeId and optional fields', () => {
     const createBody = {
       title: 'New task',
       description: 'Details',
+      assigneeId: 'mem-1',
       status: 'open' as const,
       parentTaskId: 'task-3',
       dueDate: '2026-08-01T00:00:00.000Z',
@@ -444,6 +445,7 @@ describe('ProjectService', () => {
       status: 'open',
       milestoneId: null,
       parentTaskId: 'task-3',
+      assigneeId: 'mem-1',
     };
 
     service.createTask('proj-1', createBody).subscribe((response) => {
@@ -453,15 +455,23 @@ describe('ProjectService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(createBody);
+    expect(req.request.body.assigneeId).toBe('mem-1');
     req.flush(createdTask);
   });
 
-  it('should update a task with patch body', () => {
+  it('should update a task with assigneeId in patch body', () => {
     const updateBody = {
       title: 'Updated hero',
+      description: 'Updated description',
+      assigneeId: 'mem-2',
+      dueDate: '2026-08-01T00:00:00.000Z',
       status: 'done' as const,
     };
-    const updatedTask: Task = { ...mockTask, title: 'Updated hero' };
+    const updatedTask: Task = {
+      ...mockTask,
+      title: 'Updated hero',
+      assigneeId: 'mem-2',
+    };
 
     service.updateTask('proj-1', 'task-1', updateBody).subscribe((response) => {
       expect(response).toEqual(updatedTask);
@@ -470,6 +480,7 @@ describe('ProjectService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-1`);
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual(updateBody);
+    expect(req.request.body.assigneeId).toBe('mem-2');
     req.flush(updatedTask);
   });
 
@@ -662,5 +673,49 @@ describe('ProjectService', () => {
     );
     expect(req.request.method).toBe('GET');
     req.flush(historyResponse);
+  });
+
+  it('should list deleted tasks for a project', () => {
+    const deletedTasksResponse: TaskListResponse = {
+      tasks: [
+        {
+          id: 'task-1',
+          title: 'Update homepage hero',
+          status: 'done',
+          milestoneId: 'ms-1',
+          assigneeId: 'mem-1',
+          deletedAt: '2026-07-20T00:00:00.000Z',
+        },
+      ],
+    };
+
+    service.listDeletedTasks('proj-1').subscribe((response) => {
+      expect(response).toEqual(deletedTasksResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/deleted`);
+    expect(req.request.method).toBe('GET');
+    req.flush(deletedTasksResponse);
+  });
+
+  it('should restore a deleted task', () => {
+    const restoredTask: Task = {
+      id: 'task-1',
+      title: 'Update homepage hero',
+      status: 'done',
+      milestoneId: 'ms-1',
+      assigneeId: 'mem-1',
+    };
+
+    service.restoreTask('proj-1', 'task-1').subscribe((response) => {
+      expect(response).toEqual(restoredTask);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-1/restore`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush(restoredTask);
   });
 });

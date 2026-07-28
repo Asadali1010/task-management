@@ -6,6 +6,7 @@ import { BehaviorSubject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import {
+  ProjectMember,
   TaskDependency,
   TaskHierarchyNode,
   TaskHistoryEntry,
@@ -17,10 +18,12 @@ import { ProjectTasks } from './project-tasks';
 describe('ProjectTasks', () => {
   let fixture: ComponentFixture<ProjectTasks>;
   let projectService: {
+    getProjectDetail: ReturnType<typeof vi.fn>;
     getTaskHierarchy: ReturnType<typeof vi.fn>;
     listTasks: ReturnType<typeof vi.fn>;
     listTaskTemplates: ReturnType<typeof vi.fn>;
     listTaskDependencies: ReturnType<typeof vi.fn>;
+    listDeletedTasks: ReturnType<typeof vi.fn>;
     createTask: ReturnType<typeof vi.fn>;
     updateTask: ReturnType<typeof vi.fn>;
     deleteTask: ReturnType<typeof vi.fn>;
@@ -28,8 +31,14 @@ describe('ProjectTasks', () => {
     createTaskFromTemplate: ReturnType<typeof vi.fn>;
     bulkTaskAction: ReturnType<typeof vi.fn>;
     getTaskHistory: ReturnType<typeof vi.fn>;
+    restoreTask: ReturnType<typeof vi.fn>;
   };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+
+  const mockMembers: ProjectMember[] = [
+    { id: 'mem-1', name: 'Asad Ali', email: 'asad@example.com', role: 'owner' },
+    { id: 'mem-2', name: 'Priya Nair', email: 'priya@example.com', role: 'admin' },
+  ];
 
   const mockHierarchy: TaskHierarchyNode[] = [
     {
@@ -37,6 +46,9 @@ describe('ProjectTasks', () => {
       title: 'Update homepage hero',
       status: 'done',
       milestoneId: 'ms-1',
+      assigneeId: 'mem-1',
+      description: 'Refresh the homepage hero section.',
+      dueDate: '2026-07-01T00:00:00.000Z',
       subtasks: [],
     },
     {
@@ -44,13 +56,19 @@ describe('ProjectTasks', () => {
       title: 'Write launch blog post',
       status: 'open',
       milestoneId: 'ms-1',
+      assigneeId: 'mem-2',
+      description: 'Draft and publish the launch announcement.',
+      dueDate: '2026-08-01T00:00:00.000Z',
       subtasks: [
         {
           id: 'task-3a',
           title: 'Draft blog outline',
           status: 'done',
           milestoneId: 'ms-1',
+          assigneeId: 'mem-2',
           parentTaskId: 'task-3',
+          description: 'Outline key sections.',
+          dueDate: '2026-07-15T00:00:00.000Z',
           subtasks: [],
         },
       ],
@@ -83,10 +101,12 @@ describe('ProjectTasks', () => {
 
   beforeEach(async () => {
     projectService = {
+      getProjectDetail: vi.fn(),
       getTaskHierarchy: vi.fn(),
       listTasks: vi.fn(),
       listTaskTemplates: vi.fn(),
       listTaskDependencies: vi.fn(),
+      listDeletedTasks: vi.fn(),
       createTask: vi.fn(),
       updateTask: vi.fn(),
       deleteTask: vi.fn(),
@@ -94,6 +114,7 @@ describe('ProjectTasks', () => {
       createTaskFromTemplate: vi.fn(),
       bulkTaskAction: vi.fn(),
       getTaskHistory: vi.fn(),
+      restoreTask: vi.fn(),
     };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
@@ -111,20 +132,103 @@ describe('ProjectTasks', () => {
   });
 
   function mockLoadSuccess(): void {
+    projectService.getProjectDetail.mockReturnValue(
+      of({
+        metadata: {
+          id: 'proj-1',
+          name: 'Website Redesign',
+          description: 'Refresh the marketing site.',
+          status: 'active',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:00.000Z',
+          archivedAt: null,
+        },
+        members: mockMembers,
+        recentActivity: [],
+        metrics: {
+          totalTasks: 5,
+          completedTasks: 3,
+          openTasks: 2,
+          overdueTasks: 0,
+          memberCount: 2,
+        },
+        viewerRole: 'owner',
+      }),
+    );
     projectService.getTaskHierarchy.mockReturnValue(of({ tasks: mockHierarchy }));
     projectService.listTasks.mockReturnValue(
       of({
         tasks: [
-          { id: 'task-1', title: 'Update homepage hero', status: 'done', milestoneId: 'ms-1' },
-          { id: 'task-3', title: 'Write launch blog post', status: 'open', milestoneId: 'ms-1' },
-          { id: 'task-3a', title: 'Draft blog outline', status: 'done', milestoneId: 'ms-1' },
-          { id: 'task-4', title: 'Migrate legacy blog content', status: 'done', milestoneId: 'ms-2' },
-          { id: 'task-5', title: 'Redirect old URLs', status: 'open', milestoneId: 'ms-2' },
+          {
+            id: 'task-1',
+            title: 'Update homepage hero',
+            status: 'done',
+            milestoneId: 'ms-1',
+            assigneeId: 'mem-1',
+            description: 'Refresh the homepage hero section.',
+            dueDate: '2026-07-01T00:00:00.000Z',
+          },
+          {
+            id: 'task-3',
+            title: 'Write launch blog post',
+            status: 'open',
+            milestoneId: 'ms-1',
+            assigneeId: 'mem-2',
+            description: 'Draft and publish the launch announcement.',
+            dueDate: '2026-08-01T00:00:00.000Z',
+          },
+          {
+            id: 'task-3a',
+            title: 'Draft blog outline',
+            status: 'done',
+            milestoneId: 'ms-1',
+            assigneeId: 'mem-2',
+            parentTaskId: 'task-3',
+            description: 'Outline key sections.',
+            dueDate: '2026-07-15T00:00:00.000Z',
+          },
+          {
+            id: 'task-4',
+            title: 'Migrate legacy blog content',
+            status: 'done',
+            milestoneId: 'ms-2',
+            assigneeId: 'mem-1',
+            description: 'Move archived blog posts.',
+            dueDate: '2026-06-01T00:00:00.000Z',
+          },
+          {
+            id: 'task-5',
+            title: 'Redirect old URLs',
+            status: 'open',
+            milestoneId: 'ms-2',
+            assigneeId: 'mem-2',
+            description: 'Configure 301 redirects.',
+            dueDate: '2026-08-15T00:00:00.000Z',
+          },
         ],
       }),
     );
     projectService.listTaskTemplates.mockReturnValue(of({ templates: mockTemplates }));
     projectService.listTaskDependencies.mockReturnValue(of({ dependencies: mockDependencies }));
+    projectService.listDeletedTasks.mockReturnValue(of({ tasks: [] }));
+  }
+
+  function fillCreateForm(compiled: HTMLElement): void {
+    const titleInput = compiled.querySelector('#task-title') as HTMLInputElement;
+    titleInput.value = 'New task';
+    titleInput.dispatchEvent(new Event('input'));
+
+    const descriptionInput = compiled.querySelector('#task-description') as HTMLTextAreaElement;
+    descriptionInput.value = 'Task description';
+    descriptionInput.dispatchEvent(new Event('input'));
+
+    const assigneeSelect = compiled.querySelector('#task-assignee') as HTMLSelectElement;
+    assigneeSelect.value = 'mem-1';
+    assigneeSelect.dispatchEvent(new Event('change'));
+
+    const dueDateInput = compiled.querySelector('#task-due-date') as HTMLInputElement;
+    dueDateInput.value = '2026-08-01';
+    dueDateInput.dispatchEvent(new Event('input'));
   }
 
   function createComponent(): void {
@@ -140,16 +244,22 @@ describe('ProjectTasks', () => {
     mockLoadSuccess();
     createComponent();
 
+    expect(projectService.getProjectDetail).toHaveBeenCalledWith('proj-1');
     expect(projectService.getTaskHierarchy).toHaveBeenCalledWith('proj-1');
+    expect(projectService.listDeletedTasks).toHaveBeenCalledWith('proj-1');
     expect(projectService.listTaskTemplates).toHaveBeenCalledWith('proj-1');
     expect(projectService.listTaskDependencies).toHaveBeenCalledWith('proj-1');
 
     const compiled = getCompiled();
     expect(compiled.textContent).toContain('Update homepage hero');
     expect(compiled.textContent).toContain('Draft blog outline');
+    expect(compiled.textContent).toContain('Assigned to Asad Ali');
   });
 
   it('should show an error state and retry when loading fails', () => {
+    projectService.getProjectDetail.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500 })),
+    );
     projectService.getTaskHierarchy.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500 })),
     );
@@ -160,6 +270,9 @@ describe('ProjectTasks', () => {
       throwError(() => new HttpErrorResponse({ status: 500 })),
     );
     projectService.listTaskDependencies.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500 })),
+    );
+    projectService.listDeletedTasks.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500 })),
     );
 
@@ -177,17 +290,37 @@ describe('ProjectTasks', () => {
     expect(compiled.textContent).toContain('Update homepage hero');
   });
 
+  it('should block create submit when required fields are missing', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    fixture.debugElement.query(By.css('.task-create-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
+
+    expect(projectService.createTask).not.toHaveBeenCalled();
+
+    const compiled = getCompiled();
+    expect(compiled.textContent).toContain('Title is required.');
+    expect(compiled.textContent).toContain('Description is required.');
+    expect(compiled.textContent).toContain('Assignee is required.');
+    expect(compiled.textContent).toContain('Due date is required.');
+  });
+
   it('should create a task on form submission', () => {
     mockLoadSuccess();
     projectService.createTask.mockReturnValue(
-      of({ id: 'task-100', title: 'New task', status: 'open', milestoneId: null }),
+      of({
+        id: 'task-100',
+        title: 'New task',
+        status: 'open',
+        milestoneId: null,
+        assigneeId: 'mem-1',
+      }),
     );
 
     createComponent();
 
-    const titleInput = getCompiled().querySelector('#task-title') as HTMLInputElement;
-    titleInput.value = 'New task';
-    titleInput.dispatchEvent(new Event('input'));
+    fillCreateForm(getCompiled());
     fixture.detectChanges();
 
     fixture.debugElement.query(By.css('.task-create-form'))!.triggerEventHandler('ngSubmit', null);
@@ -195,7 +328,12 @@ describe('ProjectTasks', () => {
 
     expect(projectService.createTask).toHaveBeenCalledWith(
       'proj-1',
-      expect.objectContaining({ title: 'New task' }),
+      expect.objectContaining({
+        title: 'New task',
+        description: 'Task description',
+        assigneeId: 'mem-1',
+        dueDate: '2026-08-01T00:00:00.000Z',
+      }),
     );
   });
 
@@ -247,7 +385,13 @@ describe('ProjectTasks', () => {
   it('should edit a task on form submission', () => {
     mockLoadSuccess();
     projectService.updateTask.mockReturnValue(
-      of({ id: 'task-1', title: 'Updated hero', status: 'done', milestoneId: 'ms-1' }),
+      of({
+        id: 'task-1',
+        title: 'Updated hero',
+        status: 'done',
+        milestoneId: 'ms-1',
+        assigneeId: 'mem-2',
+      }),
     );
 
     createComponent();
@@ -261,6 +405,10 @@ describe('ProjectTasks', () => {
     const titleInput = getCompiled().querySelector('#edit-title-task-1') as HTMLInputElement;
     titleInput.value = 'Updated hero';
     titleInput.dispatchEvent(new Event('input'));
+
+    const assigneeSelect = getCompiled().querySelector('#edit-assignee-task-1') as HTMLSelectElement;
+    assigneeSelect.value = 'mem-2';
+    assigneeSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
     fixture.debugElement.query(By.css('.task-edit-form'))!.triggerEventHandler('ngSubmit', null);
@@ -269,8 +417,52 @@ describe('ProjectTasks', () => {
     expect(projectService.updateTask).toHaveBeenCalledWith(
       'proj-1',
       'task-1',
-      expect.objectContaining({ title: 'Updated hero' }),
+      expect.objectContaining({
+        title: 'Updated hero',
+        assigneeId: 'mem-2',
+      }),
     );
+  });
+
+  it('should block edit submit when required fields are missing', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    const editButton = getCompiled().querySelector(
+      '[aria-label="Edit task Update homepage hero"]',
+    ) as HTMLButtonElement;
+    editButton.click();
+    fixture.detectChanges();
+
+    const titleInput = getCompiled().querySelector('#edit-title-task-1') as HTMLInputElement;
+    titleInput.value = '';
+    titleInput.dispatchEvent(new Event('input'));
+
+    const descriptionInput = getCompiled().querySelector(
+      '#edit-description-task-1',
+    ) as HTMLTextAreaElement;
+    descriptionInput.value = '';
+    descriptionInput.dispatchEvent(new Event('input'));
+
+    const assigneeSelect = getCompiled().querySelector('#edit-assignee-task-1') as HTMLSelectElement;
+    assigneeSelect.value = '';
+    assigneeSelect.dispatchEvent(new Event('change'));
+
+    const dueDateInput = getCompiled().querySelector('#edit-due-task-1') as HTMLInputElement;
+    dueDateInput.value = '';
+    dueDateInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('.task-edit-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
+
+    expect(projectService.updateTask).not.toHaveBeenCalled();
+
+    const compiled = getCompiled();
+    expect(compiled.textContent).toContain('Title is required.');
+    expect(compiled.textContent).toContain('Description is required.');
+    expect(compiled.textContent).toContain('Assignee is required.');
+    expect(compiled.textContent).toContain('Due date is required.');
   });
 
   it('should delete a task when delete is clicked', () => {
@@ -286,6 +478,50 @@ describe('ProjectTasks', () => {
     fixture.detectChanges();
 
     expect(projectService.deleteTask).toHaveBeenCalledWith('proj-1', 'task-1');
+    expect(projectService.listDeletedTasks).toHaveBeenCalled();
+  });
+
+  it('should show deleted tasks and restore within the grace period', () => {
+    mockLoadSuccess();
+    projectService.listDeletedTasks.mockReturnValue(
+      of({
+        tasks: [
+          {
+            id: 'task-deleted',
+            title: 'Removed task',
+            status: 'open',
+            milestoneId: null,
+            assigneeId: 'mem-1',
+            description: 'Was deleted',
+            dueDate: '2026-08-01T00:00:00.000Z',
+            deletedAt: '2026-07-20T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    projectService.restoreTask.mockReturnValue(
+      of({
+        id: 'task-deleted',
+        title: 'Removed task',
+        status: 'open',
+        milestoneId: null,
+        assigneeId: 'mem-1',
+      }),
+    );
+
+    createComponent();
+
+    expect(getCompiled().textContent).toContain('Removed task');
+
+    const restoreButton = getCompiled().querySelector(
+      '[aria-label="Restore task Removed task"]',
+    ) as HTMLButtonElement;
+    restoreButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.restoreTask).toHaveBeenCalledWith('proj-1', 'task-deleted');
+    expect(projectService.getTaskHierarchy).toHaveBeenCalledTimes(2);
+    expect(projectService.listDeletedTasks).toHaveBeenCalledTimes(2);
   });
 
   it('should duplicate a task when duplicate is clicked', () => {
@@ -329,6 +565,7 @@ describe('ProjectTasks', () => {
 
     expect(getCompiled().textContent).toContain('Add subtask to');
 
+    fillCreateForm(getCompiled());
     const titleInput = getCompiled().querySelector('#task-title') as HTMLInputElement;
     titleInput.value = 'Review outline';
     titleInput.dispatchEvent(new Event('input'));
