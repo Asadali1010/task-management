@@ -5,8 +5,12 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ArchiveProjectResponse,
+  CreateMilestoneRequest,
   InviteMemberRequest,
   InviteMemberResponse,
+  LinkTaskToMilestoneRequest,
+  Milestone,
+  MilestoneListResponse,
   ProjectActivityPageResponse,
   ProjectAnalytics,
   ProjectAnalyticsDateRange,
@@ -14,6 +18,8 @@ import {
   ProjectListResponse,
   ProjectRole,
   RestoreProjectResponse,
+  Task,
+  TaskListResponse,
   UpdateMemberRoleRequest,
   UpdateMemberRoleResponse,
 } from '../models/project.models';
@@ -96,6 +102,35 @@ export class ProjectService {
     const body: UpdateMemberRoleRequest = { role };
     return this.http.patch<UpdateMemberRoleResponse>(
       `${environment.apiUrl}/projects/${projectId}/members/${memberId}/role`,
+      body,
+    );
+  }
+
+  listMilestones(projectId: string): Observable<MilestoneListResponse> {
+    return this.http.get<MilestoneListResponse>(
+      `${environment.apiUrl}/projects/${projectId}/milestones`,
+    );
+  }
+
+  createMilestone(projectId: string, request: CreateMilestoneRequest): Observable<Milestone> {
+    return this.http.post<Milestone>(
+      `${environment.apiUrl}/projects/${projectId}/milestones`,
+      request,
+    );
+  }
+
+  listTasks(projectId: string): Observable<TaskListResponse> {
+    return this.http.get<TaskListResponse>(`${environment.apiUrl}/projects/${projectId}/tasks`);
+  }
+
+  linkTaskToMilestone(
+    projectId: string,
+    taskId: string,
+    milestoneId: string | null,
+  ): Observable<Task> {
+    const body: LinkTaskToMilestoneRequest = { milestoneId };
+    return this.http.patch<Task>(
+      `${environment.apiUrl}/projects/${projectId}/tasks/${taskId}`,
       body,
     );
   }

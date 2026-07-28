@@ -6,12 +6,16 @@ import { environment } from '../../../environments/environment';
 import {
   ArchiveProjectResponse,
   InviteMemberResponse,
+  Milestone,
+  MilestoneListResponse,
   ProjectActivityPageResponse,
   ProjectAnalytics,
   ProjectDetail,
   ProjectListResponse,
   ProjectSummary,
   RestoreProjectResponse,
+  Task,
+  TaskListResponse,
   UpdateMemberRoleResponse,
 } from '../models/project.models';
 import { ProjectService } from './project.service';
@@ -303,5 +307,108 @@ describe('ProjectService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null);
     expect(completed).toBe(true);
+  });
+
+  const mockMilestones: Milestone[] = [
+    {
+      id: 'ms-1',
+      title: 'Homepage Launch',
+      dueDate: '2026-08-15T00:00:00.000Z',
+      progressPercent: 67,
+      isOverdue: false,
+    },
+    {
+      id: 'ms-2',
+      title: 'Content Migration',
+      dueDate: '2026-07-10T00:00:00.000Z',
+      progressPercent: 50,
+      isOverdue: true,
+    },
+  ];
+
+  const mockMilestoneListResponse: MilestoneListResponse = {
+    milestones: mockMilestones,
+  };
+
+  it('should list milestones for a project', () => {
+    service.listMilestones('proj-1').subscribe((response) => {
+      expect(response).toEqual(mockMilestoneListResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/milestones`);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockMilestoneListResponse);
+  });
+
+  const mockCreatedMilestone: Milestone = {
+    id: 'ms-100',
+    title: 'QA Sign-off',
+    dueDate: '2026-09-01T00:00:00.000Z',
+    progressPercent: 0,
+    isOverdue: false,
+  };
+
+  it('should create a milestone with title and due date', () => {
+    service
+      .createMilestone('proj-1', {
+        title: 'QA Sign-off',
+        dueDate: '2026-09-01T00:00:00.000Z',
+      })
+      .subscribe((response) => {
+        expect(response).toEqual(mockCreatedMilestone);
+      });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/milestones`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      title: 'QA Sign-off',
+      dueDate: '2026-09-01T00:00:00.000Z',
+    });
+    req.flush(mockCreatedMilestone);
+  });
+
+  const mockTaskListResponse: TaskListResponse = {
+    tasks: [
+      {
+        id: 'task-1',
+        title: 'Update homepage hero',
+        status: 'done',
+        milestoneId: 'ms-1',
+      },
+      {
+        id: 'task-3',
+        title: 'Write launch blog post',
+        status: 'open',
+        milestoneId: 'ms-1',
+      },
+    ],
+  };
+
+  it('should list tasks for a project', () => {
+    service.listTasks('proj-1').subscribe((response) => {
+      expect(response).toEqual(mockTaskListResponse);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks`);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockTaskListResponse);
+  });
+
+  const mockLinkedTask: Task = {
+    id: 'task-6',
+    title: 'Audit accessibility',
+    status: 'open',
+    milestoneId: 'ms-1',
+  };
+
+  it('should link a task to a milestone', () => {
+    service.linkTaskToMilestone('proj-1', 'task-6', 'ms-1').subscribe((response) => {
+      expect(response).toEqual(mockLinkedTask);
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-6`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ milestoneId: 'ms-1' });
+    req.flush(mockLinkedTask);
   });
 });

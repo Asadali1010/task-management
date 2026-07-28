@@ -1,0 +1,168 @@
+<div class="project-milestones-page">
+  @if (isLoading() && milestones().length === 0) {
+    <div class="milestones-state" role="status" aria-live="polite">
+      <p class="milestones-state-message">Loading milestones…</p>
+    </div>
+  } @else if (errorMessage() && milestones().length === 0) {
+    <div class="milestones-state milestones-state-error" role="alert">
+      <h1 class="milestones-state-heading">Something went wrong</h1>
+      <p class="milestones-state-message">{{ errorMessage() }}</p>
+      @if (projectId()) {
+        <button type="button" class="milestones-retry-btn" (click)="retryLoad()">Try again</button>
+      }
+    </div>
+  } @else {
+    <header class="milestones-header" aria-labelledby="milestones-heading">
+      <div class="milestones-header-main">
+        <p class="milestones-eyebrow">Project milestones</p>
+        <h1 id="milestones-heading" class="milestones-title">Milestone tracker</h1>
+        <p class="milestones-description">
+          Create milestones, track progress from linked tasks, and spot overdue deliverables.
+        </p>
+      </div>
+      <nav class="milestones-nav" aria-label="Project sections">
+        <a class="milestones-nav-link" [routerLink]="['/projects', projectId()]">Overview</a>
+        <a
+          class="milestones-nav-link milestones-nav-link-active"
+          [routerLink]="['/projects', projectId(), 'milestones']"
+          aria-current="page"
+        >
+          Milestones
+        </a>
+      </nav>
+    </header>
+
+    <section class="milestones-panel milestones-create-panel" aria-labelledby="create-heading">
+      <h2 id="create-heading" class="milestones-panel-heading">Create milestone</h2>
+      <form
+        class="milestone-create-form"
+        [formGroup]="createForm"
+        (ngSubmit)="onCreateSubmit()"
+        novalidate
+      >
+        <div class="milestone-form-field">
+          <label for="milestone-title" class="milestone-form-label">Title</label>
+          <input
+            id="milestone-title"
+            type="text"
+            class="milestone-form-input"
+            formControlName="title"
+            autocomplete="off"
+          />
+        </div>
+        <div class="milestone-form-field">
+          <label for="milestone-due-date" class="milestone-form-label">Due date</label>
+          <input
+            id="milestone-due-date"
+            type="date"
+            class="milestone-form-input"
+            formControlName="dueDate"
+          />
+        </div>
+        <button
+          type="submit"
+          class="milestone-create-btn"
+          [disabled]="createForm.invalid || isCreating()"
+        >
+          @if (isCreating()) {
+            Creating…
+          } @else {
+            Create milestone
+          }
+        </button>
+      </form>
+    </section>
+
+    @if (linkError()) {
+      <p class="milestones-inline-error" role="alert">{{ linkError() }}</p>
+    }
+
+    <section class="milestones-panel" aria-labelledby="list-heading">
+      <h2 id="list-heading" class="milestones-panel-heading">All milestones</h2>
+      @if (milestones().length === 0) {
+        <p class="milestones-empty">
+          No milestones yet. Create one above to start tracking deliverables.
+        </p>
+      } @else {
+        <ul class="milestone-list">
+          @for (milestone of milestones(); track milestone.id) {
+            <li>
+              <article
+                class="milestone-card"
+                [class.milestone-card-overdue]="milestone.isOverdue"
+                [attr.aria-labelledby]="'milestone-title-' + milestone.id"
+              >
+                <header class="milestone-card-header">
+                  <div class="milestone-card-title-row">
+                    <h3 [id]="'milestone-title-' + milestone.id" class="milestone-card-title">
+                      {{ milestone.title }}
+                    </h3>
+                    @if (milestone.isOverdue) {
+                      <span class="milestone-overdue-badge">Overdue</span>
+                    }
+                  </div>
+                  <p class="milestone-due-date">
+                    Due
+                    <time [dateTime]="milestone.dueDate">{{
+                      milestone.dueDate | date: 'mediumDate'
+                    }}</time>
+                  </p>
+                </header>
+
+                <div class="milestone-progress" aria-label="Milestone progress">
+                  <div class="milestone-progress-track" aria-hidden="true">
+                    <div
+                      class="milestone-progress-fill"
+                      [style.width.%]="milestone.progressPercent"
+                    ></div>
+                  </div>
+                  <p class="milestone-progress-label">
+                    <span class="milestone-progress-value">{{ milestone.progressPercent }}%</span>
+                    complete
+                  </p>
+                </div>
+
+                <div class="milestone-link-controls">
+                  <label
+                    class="milestone-link-label"
+                    [for]="'milestone-link-' + milestone.id"
+                  >
+                    Link a task
+                  </label>
+                  <div class="milestone-link-row">
+                    <select
+                      class="milestone-link-select"
+                      [id]="'milestone-link-' + milestone.id"
+                      [value]="getSelectedLinkTask(milestone.id)"
+                      (change)="onLinkTaskSelect(milestone.id, $event)"
+                    >
+                      <option value="">Select a task…</option>
+                      @for (task of getLinkableTasks(milestone.id); track task.id) {
+                        <option [value]="task.id">{{ task.title }}</option>
+                      }
+                    </select>
+                    <button
+                      type="button"
+                      class="milestone-link-btn"
+                      (click)="linkTask(milestone.id, getSelectedLinkTask(milestone.id))"
+                      [disabled]="
+                        !getSelectedLinkTask(milestone.id) ||
+                        linkingTaskId() === getSelectedLinkTask(milestone.id)
+                      "
+                    >
+                      @if (linkingTaskId() === getSelectedLinkTask(milestone.id)) {
+                        Linking…
+                      } @else {
+                        Link task
+                      }
+                    </button>
+                  </div>
+                </div>
+              </article>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>

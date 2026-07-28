@@ -118,3 +118,37 @@ export interface ProjectAnalyticsDateRange {
   from: string;
   to: string;
 }
+
+export type TaskStatus = 'done' | 'open';
+
+export interface Task {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  milestoneId: string | null;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  dueDate: string;
+  progressPercent: number;
+  isOverdue: boolean;
+}
+
+export interface CreateMilestoneRequest {
+  title: string;
+  dueDate: string;
+}
+
+export interface MilestoneListResponse {
+  milestones: Milestone[];
+}
+
+export interface TaskListResponse {
+  tasks: Task[];
+}
+
+export interface LinkTaskToMilestoneRequest {
+  milestoneId: string | null;
+}

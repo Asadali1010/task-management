@@ -1,0 +1,417 @@
+.project-milestones-page {
+  --pm-font: var(--bs-font-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+  --pm-fs: 1rem;
+  --pm-fs-sm: 0.875rem;
+  --pm-fs-lg: clamp(1.375rem, 3vw, 1.75rem);
+  --pm-lh: 1.5;
+  --pm-xs: 0.25rem;
+  --pm-sm: 0.5rem;
+  --pm-md: 1rem;
+  --pm-lg: 1.5rem;
+  --pm-xl: 2rem;
+  --pm-bg-a: #e8f0f7;
+  --pm-bg-b: #dce8f2;
+  --pm-pattern: rgba(13, 94, 120, 0.06);
+  --pm-glow-a: rgba(13, 148, 136, 0.14);
+  --pm-glow-b: rgba(14, 116, 144, 0.1);
+  --pm-surface: #fff;
+  --pm-border: rgba(15, 23, 42, 0.08);
+  --pm-text: #0f172a;
+  --pm-muted: #475569;
+  --pm-primary: #0d7377;
+  --pm-primary-h: #0a5c5f;
+  --pm-on-primary: #fff;
+  --pm-link: #0d7377;
+  --pm-link-h: #0a5c5f;
+  --pm-error: #b91c1c;
+  --pm-error-bg: #fef2f2;
+  --pm-error-bd: #fecaca;
+  --pm-error-text: #991b1b;
+  --pm-overdue: #b45309;
+  --pm-overdue-bg: #fffbeb;
+  --pm-overdue-bd: #fcd34d;
+  --pm-overdue-text: #92400e;
+  --pm-r-sm: 0.375rem;
+  --pm-r-md: 0.625rem;
+  --pm-r-lg: 1rem;
+  --pm-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --pm-t: 200ms ease;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding: var(--pm-md);
+  font: var(--pm-fs)/var(--pm-lh) var(--pm-font);
+  color: var(--pm-text);
+  background: var(--pm-bg-b);
+  background-image:
+    radial-gradient(circle at 10% 90%, var(--pm-glow-a) 0%, transparent 42%),
+    radial-gradient(circle at 90% 10%, var(--pm-glow-b) 0%, transparent 38%),
+    linear-gradient(160deg, var(--pm-bg-a), var(--pm-bg-b)),
+    linear-gradient(var(--pm-pattern) 1px, transparent 1px),
+    linear-gradient(90deg, var(--pm-pattern) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+  border-radius: var(--pm-r-lg);
+}
+
+.project-milestones-page *,
+.project-milestones-page *::before,
+.project-milestones-page *::after {
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .project-milestones-page {
+    --pm-bg-a: #0c1220;
+    --pm-bg-b: #111827;
+    --pm-pattern: rgba(45, 212, 191, 0.04);
+    --pm-glow-a: rgba(45, 212, 191, 0.1);
+    --pm-glow-b: rgba(56, 189, 248, 0.07);
+    --pm-surface: #1e293b;
+    --pm-border: rgba(148, 163, 184, 0.16);
+    --pm-text: #f1f5f9;
+    --pm-muted: #94a3b8;
+    --pm-primary: #2dd4bf;
+    --pm-primary-h: #5eead4;
+    --pm-on-primary: #042f2e;
+    --pm-link: #5eead4;
+    --pm-link-h: #99f6e4;
+    --pm-error: #fca5a5;
+    --pm-error-bg: rgba(127, 29, 29, 0.25);
+    --pm-error-bd: rgba(248, 113, 113, 0.4);
+    --pm-error-text: #fecaca;
+    --pm-overdue: #fbbf24;
+    --pm-overdue-bg: rgba(146, 64, 14, 0.25);
+    --pm-overdue-bd: rgba(251, 191, 36, 0.4);
+    --pm-overdue-text: #fde68a;
+    --pm-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+}
+
+.milestones-state {
+  padding: var(--pm-xl);
+  text-align: center;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-lg);
+  box-shadow: var(--pm-shadow);
+}
+
+.milestones-state-error {
+  background: var(--pm-error-bg);
+  border-color: var(--pm-error-bd);
+}
+
+.milestones-state-heading {
+  margin: 0 0 var(--pm-sm);
+  font-size: var(--pm-fs-lg);
+  font-weight: 600;
+  color: var(--pm-error-text);
+}
+
+.milestones-state-message {
+  margin: 0;
+  color: var(--pm-muted);
+}
+
+.milestones-state-error .milestones-state-message {
+  color: var(--pm-error-text);
+}
+
+.milestones-retry-btn,
+.milestone-create-btn,
+.milestone-link-btn {
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  font-size: var(--pm-fs-sm);
+  font-weight: 600;
+  color: var(--pm-on-primary);
+  background: var(--pm-primary);
+  border: 1px solid var(--pm-primary);
+  border-radius: var(--pm-r-sm);
+  cursor: pointer;
+}
+
+.milestones-retry-btn {
+  margin-top: var(--pm-md);
+}
+
+.milestones-retry-btn:hover,
+.milestone-create-btn:hover:not(:disabled),
+.milestone-link-btn:hover:not(:disabled) {
+  background: var(--pm-primary-h);
+  border-color: var(--pm-primary-h);
+}
+
+.milestones-retry-btn:focus-visible,
+.milestone-create-btn:focus-visible,
+.milestone-link-btn:focus-visible,
+.milestone-form-input:focus-visible,
+.milestone-link-select:focus-visible {
+  outline: 2px solid var(--pm-primary);
+  outline-offset: 2px;
+}
+
+.milestone-create-btn:disabled,
+.milestone-link-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.milestones-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-lg);
+  margin-bottom: var(--pm-lg);
+  padding: var(--pm-lg);
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-lg);
+  box-shadow: var(--pm-shadow);
+}
+
+.milestones-eyebrow {
+  margin: 0 0 var(--pm-xs);
+  font-size: var(--pm-fs-sm);
+  font-weight: 500;
+  color: var(--pm-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.milestones-title {
+  margin: 0 0 var(--pm-sm);
+  font-size: var(--pm-fs-lg);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.milestones-description {
+  margin: 0;
+  color: var(--pm-muted);
+  max-width: 48rem;
+}
+
+.milestones-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pm-sm);
+}
+
+.milestones-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  font-size: var(--pm-fs-sm);
+  font-weight: 600;
+  color: var(--pm-link);
+  text-decoration: none;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-sm);
+}
+
+.milestones-nav-link:hover {
+  color: var(--pm-link-h);
+  border-color: var(--pm-primary);
+}
+
+.milestones-nav-link:focus-visible {
+  outline: 2px solid var(--pm-primary);
+  outline-offset: 2px;
+}
+
+.milestones-nav-link-active {
+  color: var(--pm-on-primary);
+  background: var(--pm-primary);
+  border-color: var(--pm-primary);
+}
+
+.milestones-nav-link-active:hover {
+  color: var(--pm-on-primary);
+  background: var(--pm-primary-h);
+  border-color: var(--pm-primary-h);
+}
+
+.milestones-panel {
+  margin-bottom: var(--pm-lg);
+  padding: var(--pm-lg);
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-lg);
+  box-shadow: var(--pm-shadow);
+}
+
+.milestones-panel-heading {
+  margin: 0 0 var(--pm-md);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.milestone-create-form {
+  display: grid;
+  gap: var(--pm-md);
+}
+
+@media (min-width: 640px) {
+  .milestone-create-form {
+    grid-template-columns: 1fr 1fr auto;
+    align-items: end;
+  }
+}
+
+.milestone-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-xs);
+}
+
+.milestone-form-label,
+.milestone-link-label {
+  font-size: var(--pm-fs-sm);
+  font-weight: 500;
+  color: var(--pm-muted);
+}
+
+.milestone-form-input,
+.milestone-link-select {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--pm-text);
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-sm);
+}
+
+.milestones-inline-error {
+  margin: 0 0 var(--pm-md);
+  padding: var(--pm-sm) var(--pm-md);
+  font-size: var(--pm-fs-sm);
+  font-weight: 500;
+  color: var(--pm-error-text);
+  background: var(--pm-error-bg);
+  border: 1px solid var(--pm-error-bd);
+  border-radius: var(--pm-r-sm);
+}
+
+.milestones-empty {
+  margin: 0;
+  font-size: var(--pm-fs-sm);
+  color: var(--pm-muted);
+}
+
+.milestone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-md);
+}
+
+.milestone-card {
+  padding: var(--pm-md);
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r-md);
+}
+
+.milestone-card-overdue {
+  border-color: var(--pm-overdue-bd);
+  background: var(--pm-overdue-bg);
+}
+
+.milestone-card-header {
+  margin-bottom: var(--pm-md);
+}
+
+.milestone-card-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pm-sm);
+  margin-bottom: var(--pm-xs);
+}
+
+.milestone-card-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.milestone-overdue-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--pm-overdue-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--pm-overdue-bg);
+  border: 1px solid var(--pm-overdue-bd);
+  border-radius: 999px;
+}
+
+.milestone-due-date {
+  margin: 0;
+  font-size: var(--pm-fs-sm);
+  color: var(--pm-muted);
+}
+
+.milestone-progress {
+  margin-bottom: var(--pm-md);
+}
+
+.milestone-progress-track {
+  height: 0.5rem;
+  margin-bottom: var(--pm-xs);
+  overflow: hidden;
+  background: var(--pm-border);
+  border-radius: 999px;
+}
+
+.milestone-progress-fill {
+  height: 100%;
+  background: var(--pm-primary);
+  border-radius: 999px;
+}
+
+.milestone-progress-label {
+  margin: 0;
+  font-size: var(--pm-fs-sm);
+  color: var(--pm-muted);
+}
+
+.milestone-progress-value {
+  font-weight: 600;
+  color: var(--pm-text);
+}
+
+.milestone-link-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-xs);
+}
+
+.milestone-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pm-sm);
+}
+
+.milestone-link-select {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .milestones-retry-btn,
+  .milestone-create-btn,
+  .milestone-link-btn,
+  .milestone-progress-fill {
+    transition: background-color var(--pm-t), border-color var(--pm-t), width var(--pm-t);
+  }
+}
