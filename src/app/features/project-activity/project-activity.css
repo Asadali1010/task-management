@@ -1,0 +1,159 @@
+.activity-embedded-panel {
+  --pa-font: var(--bs-font-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+  --pa-fs: 1rem;
+  --pa-fs-sm: 0.875rem;
+  --pa-lh: 1.5;
+  --pa-xs: 0.25rem;
+  --pa-sm: 0.5rem;
+  --pa-md: 1rem;
+  --pa-surface: #fff;
+  --pa-border: rgba(15, 23, 42, 0.08);
+  --pa-text: #0f172a;
+  --pa-muted: #475569;
+  --pa-primary: #0d7377;
+  --pa-primary-h: #0a5c5f;
+  --pa-on-primary: #fff;
+  --pa-error: #b91c1c;
+  --pa-error-bg: #fef2f2;
+  --pa-error-bd: #fecaca;
+  --pa-error-text: #991b1b;
+  --pa-r-sm: 0.375rem;
+  --pa-t: 200ms ease;
+  box-sizing: border-box;
+  width: 100%;
+  font: var(--pa-fs)/var(--pa-lh) var(--pa-font);
+  color: var(--pa-text);
+}
+
+.activity-embedded-panel *,
+.activity-embedded-panel *::before,
+.activity-embedded-panel *::after {
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .activity-embedded-panel {
+    --pa-surface: #1e293b;
+    --pa-border: rgba(148, 163, 184, 0.16);
+    --pa-text: #f1f5f9;
+    --pa-muted: #94a3b8;
+    --pa-primary: #2dd4bf;
+    --pa-primary-h: #5eead4;
+    --pa-on-primary: #042f2e;
+    --pa-error: #fca5a5;
+    --pa-error-bg: rgba(127, 29, 29, 0.25);
+    --pa-error-bd: rgba(248, 113, 113, 0.4);
+    --pa-error-text: #fecaca;
+  }
+}
+
+.activity-state {
+  padding: var(--pa-md);
+  text-align: center;
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-r-sm);
+}
+
+.activity-state-error {
+  background: var(--pa-error-bg);
+  border-color: var(--pa-error-bd);
+}
+
+.activity-state-message {
+  margin: 0;
+  font-size: var(--pa-fs-sm);
+  color: var(--pa-muted);
+}
+
+.activity-state-error .activity-state-message {
+  color: var(--pa-error-text);
+}
+
+.activity-retry-btn,
+.activity-load-more-btn {
+  margin-top: var(--pa-md);
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  font-size: var(--pa-fs-sm);
+  font-weight: 600;
+  color: var(--pa-on-primary);
+  background: var(--pa-primary);
+  border: 1px solid var(--pa-primary);
+  border-radius: var(--pa-r-sm);
+  cursor: pointer;
+}
+
+.activity-retry-btn:hover,
+.activity-load-more-btn:hover:not(:disabled) {
+  background: var(--pa-primary-h);
+  border-color: var(--pa-primary-h);
+}
+
+.activity-retry-btn:focus-visible,
+.activity-load-more-btn:focus-visible {
+  outline: 2px solid var(--pa-primary);
+  outline-offset: 2px;
+}
+
+.activity-load-more-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.activity-empty {
+  margin: 0;
+  font-size: var(--pa-fs-sm);
+  color: var(--pa-muted);
+}
+
+.activity-inline-error {
+  margin: 0 0 var(--pa-md);
+  padding: var(--pa-sm) var(--pa-md);
+  font-size: var(--pa-fs-sm);
+  font-weight: 500;
+  color: var(--pa-error-text);
+  background: var(--pa-error-bg);
+  border: 1px solid var(--pa-error-bd);
+  border-radius: var(--pa-r-sm);
+}
+
+.activity-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pa-md);
+}
+
+.activity-item {
+  padding-bottom: var(--pa-md);
+  border-bottom: 1px solid var(--pa-border);
+}
+
+.activity-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.activity-description {
+  margin: 0 0 var(--pa-xs);
+  font-weight: 500;
+}
+
+.activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pa-sm) var(--pa-md);
+  margin: 0;
+  font-size: var(--pa-fs-sm);
+  color: var(--pa-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .activity-retry-btn,
+  .activity-load-more-btn {
+    transition: background-color var(--pa-t), border-color var(--pa-t), color var(--pa-t);
+  }
+}

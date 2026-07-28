@@ -49,6 +49,14 @@ export interface ProjectActivity {
   createdAt: string;
 }
 
+export interface ProjectActivityPageResponse {
+  activities: ProjectActivity[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  hasMore: boolean;
+}
+
 export interface ProjectMetrics {
   totalTasks: number;
   completedTasks: number;

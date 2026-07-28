@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import {
   ArchiveProjectResponse,
   InviteMemberResponse,
+  ProjectActivityPageResponse,
   ProjectAnalytics as ProjectAnalyticsModel,
   ProjectDetail as ProjectDetailModel,
   RestoreProjectResponse,
@@ -20,6 +21,7 @@ describe('ProjectDetail', () => {
   let fixture: ComponentFixture<ProjectDetail>;
   let projectService: {
     getProjectDetail: ReturnType<typeof vi.fn>;
+    getProjectActivity: ReturnType<typeof vi.fn>;
     getProjectAnalytics: ReturnType<typeof vi.fn>;
     inviteMember: ReturnType<typeof vi.fn>;
     removeMember: ReturnType<typeof vi.fn>;
@@ -72,6 +74,22 @@ describe('ProjectDetail', () => {
     viewerRole: 'owner',
   };
 
+  const mockProjectActivityPage: ProjectActivityPageResponse = {
+    activities: [
+      {
+        id: 'act-1',
+        type: 'task_completed',
+        description: 'Completed task "Update homepage hero"',
+        actorName: 'Jane Doe',
+        createdAt: '2026-07-28T09:00:00Z',
+      },
+    ],
+    page: 1,
+    pageSize: 20,
+    totalCount: 1,
+    hasMore: false,
+  };
+
   const mockProjectAnalytics: ProjectAnalyticsModel = {
     summary: {
       totalTasks: 24,
@@ -94,6 +112,7 @@ describe('ProjectDetail', () => {
   beforeEach(async () => {
     projectService = {
       getProjectDetail: vi.fn(),
+      getProjectActivity: vi.fn(),
       getProjectAnalytics: vi.fn(),
       inviteMember: vi.fn(),
       removeMember: vi.fn(),
@@ -141,6 +160,7 @@ describe('ProjectDetail', () => {
     detail: ProjectDetailModel = mockProjectDetail,
   ): void {
     projectService.getProjectDetail.mockReturnValue(of(detail));
+    projectService.getProjectActivity.mockReturnValue(of(mockProjectActivityPage));
     projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
     createComponent();
   }
@@ -161,6 +181,7 @@ describe('ProjectDetail', () => {
   it('should show loading state while project detail is fetched', () => {
     const detailSubject = new Subject<ProjectDetailModel>();
     projectService.getProjectDetail.mockReturnValue(detailSubject.asObservable());
+    projectService.getProjectActivity.mockReturnValue(of(mockProjectActivityPage));
     projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
 
     createComponent();
@@ -194,7 +215,12 @@ describe('ProjectDetail', () => {
     expect(compiled.textContent).toContain('Member');
 
     expect(compiled.querySelector('#activity-heading')?.textContent).toContain('Recent activity');
+    expect(compiled.querySelector('app-project-activity')).toBeTruthy();
     expect(compiled.textContent).toContain('Completed task "Update homepage hero"');
+    expect(projectService.getProjectActivity).toHaveBeenCalledWith('proj-1', {
+      page: 1,
+      pageSize: 20,
+    });
 
     expect(compiled.querySelector('app-project-analytics')).toBeTruthy();
     expect(compiled.querySelector('#filters-heading')?.textContent).toContain('Key metrics');
@@ -251,6 +277,7 @@ describe('ProjectDetail', () => {
     projectService.getProjectDetail
       .mockReturnValueOnce(throwError(() => new Error('Network error')))
       .mockReturnValueOnce(of(mockProjectDetail));
+    projectService.getProjectActivity.mockReturnValue(of(mockProjectActivityPage));
     projectService.getProjectAnalytics.mockReturnValue(of(mockProjectAnalytics));
 
     createComponent();
@@ -322,6 +349,9 @@ describe('ProjectDetail', () => {
     expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(3);
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
     expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
+    expect(projectService.getProjectActivity).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance['analyticsRefreshTrigger']()).toBe(1);
+    expect(fixture.componentInstance['activityRefreshTrigger']()).toBe(1);
   });
 
   it('should remove a member and update the list immediately', () => {
@@ -338,6 +368,9 @@ describe('ProjectDetail', () => {
     expect(fixture.componentInstance['project']()?.metrics.memberCount).toBe(1);
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
     expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
+    expect(projectService.getProjectActivity).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance['analyticsRefreshTrigger']()).toBe(1);
+    expect(fixture.componentInstance['activityRefreshTrigger']()).toBe(1);
   });
 
   it('should show actionable error when invite is forbidden', () => {
@@ -396,6 +429,9 @@ describe('ProjectDetail', () => {
     );
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
     expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
+    expect(projectService.getProjectActivity).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance['analyticsRefreshTrigger']()).toBe(1);
+    expect(fixture.componentInstance['activityRefreshTrigger']()).toBe(1);
   });
 
   it('should keep owner rows read-only for owner viewers', () => {
@@ -533,6 +569,10 @@ describe('ProjectDetail', () => {
     expect(getCompiled().querySelector('.project-archived-banner')).toBeTruthy();
     expect(getCompiled().querySelector('.project-restore-btn')).toBeTruthy();
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
+    expect(projectService.getProjectActivity).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance['analyticsRefreshTrigger']()).toBe(1);
+    expect(fixture.componentInstance['activityRefreshTrigger']()).toBe(1);
 
     confirmSpy.mockRestore();
   });
@@ -589,6 +629,10 @@ describe('ProjectDetail', () => {
     expect(getCompiled().querySelector('.project-archived-banner')).toBeFalsy();
     expect(getCompiled().querySelector('.project-archive-btn')).toBeTruthy();
     expect(projectService.getProjectDetail).toHaveBeenCalledTimes(1);
+    expect(projectService.getProjectAnalytics).toHaveBeenCalledTimes(2);
+    expect(projectService.getProjectActivity).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance['analyticsRefreshTrigger']()).toBe(1);
+    expect(fixture.componentInstance['activityRefreshTrigger']()).toBe(1);
   });
 
   it('should show permission error when archive is forbidden', () => {

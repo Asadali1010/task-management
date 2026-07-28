@@ -1,0 +1,45 @@
+<div class="activity-embedded-panel">
+  @if (isLoading() && activities().length === 0) {
+    <div class="activity-state" role="status" aria-live="polite">
+      <p class="activity-state-message">Loading activity…</p>
+    </div>
+  } @else if (errorMessage() && activities().length === 0) {
+    <div class="activity-state activity-state-error" role="alert">
+      <p class="activity-state-message">{{ errorMessage() }}</p>
+      @if (projectIdInput()) {
+        <button type="button" class="activity-retry-btn" (click)="retryLoad()">Try again</button>
+      }
+    </div>
+  } @else if (activities().length === 0) {
+    <p class="activity-empty">No recent activity. Updates will appear here as work progresses.</p>
+  } @else {
+    @if (errorMessage()) {
+      <p class="activity-inline-error" role="alert">{{ errorMessage() }}</p>
+    }
+    <ol class="activity-feed">
+      @for (item of activities(); track item.id) {
+        <li class="activity-item">
+          <p class="activity-description">{{ item.description }}</p>
+          <p class="activity-meta">
+            <span>{{ item.actorName }}</span>
+            <time [dateTime]="item.createdAt">{{ item.createdAt | date: 'medium' }}</time>
+          </p>
+        </li>
+      }
+    </ol>
+    @if (hasMore()) {
+      <button
+        type="button"
+        class="activity-load-more-btn"
+        (click)="loadMore()"
+        [disabled]="isLoadingMore()"
+      >
+        @if (isLoadingMore()) {
+          Loading more…
+        } @else {
+          Load more
+        }
+      </button>
+    }
+  }
+</div>

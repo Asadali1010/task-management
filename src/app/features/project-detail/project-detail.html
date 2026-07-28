@@ -224,21 +224,10 @@
 
       <section class="project-panel project-activity" aria-labelledby="activity-heading">
         <h2 id="activity-heading" class="project-panel-heading">Recent activity</h2>
-        @if (detail.recentActivity.length === 0) {
-          <p class="project-empty">No recent activity. Updates will appear here as work progresses.</p>
-        } @else {
-          <ol class="activity-feed">
-            @for (item of detail.recentActivity; track item.id) {
-              <li class="activity-item">
-                <p class="activity-description">{{ item.description }}</p>
-                <p class="activity-meta">
-                  <span>{{ item.actorName }}</span>
-                  <time [dateTime]="item.createdAt">{{ item.createdAt | date: 'medium' }}</time>
-                </p>
-              </li>
-            }
-          </ol>
-        }
+        <app-project-activity
+          [projectIdInput]="projectId()"
+          [refreshTrigger]="activityRefreshTrigger()"
+        />
       </section>
 
       <section class="project-panel project-metrics">

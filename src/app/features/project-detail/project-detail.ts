@@ -14,11 +14,12 @@ import {
   RestoreProjectResponse,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
+import { ProjectActivity } from '../project-activity/project-activity';
 import { ProjectAnalytics } from '../project-analytics/project-analytics';
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, DatePipe, ReactiveFormsModule, ProjectAnalytics],
+  imports: [RouterLink, DatePipe, ReactiveFormsModule, ProjectActivity, ProjectAnalytics],
   templateUrl: './project-detail.html',
   styleUrl: './project-detail.css',
 })
@@ -43,6 +44,7 @@ export class ProjectDetail implements OnInit {
   protected readonly isArchiving = signal(false);
   protected readonly isRestoring = signal(false);
   protected readonly analyticsRefreshTrigger = signal(0);
+  protected readonly activityRefreshTrigger = signal(0);
   protected readonly analyticsPollIntervalMs = ProjectDetail.ANALYTICS_POLL_INTERVAL_MS;
 
   protected readonly inviteForm = this.fb.nonNullable.group({
@@ -192,7 +194,7 @@ export class ProjectDetail implements OnInit {
         this.updateProjectMembers((members) =>
           members.map((member) => (member.id === memberId ? response.member : member)),
         );
-        this.refreshAnalytics();
+        this.refreshEmbeddedPanels();
       },
       error: (error) => {
         this.updatingMemberRoleId.set(null);
@@ -234,7 +236,7 @@ export class ProjectDetail implements OnInit {
           }
           return [...members, response.member];
         });
-        this.refreshAnalytics();
+        this.refreshEmbeddedPanels();
       },
       error: (error) => {
         this.isInviting.set(false);
@@ -256,7 +258,7 @@ export class ProjectDetail implements OnInit {
       next: () => {
         this.removingMemberId.set(null);
         this.updateProjectMembers((members) => members.filter((member) => member.id !== memberId));
-        this.refreshAnalytics();
+        this.refreshEmbeddedPanels();
       },
       error: (error) => {
         this.removingMemberId.set(null);
@@ -267,6 +269,15 @@ export class ProjectDetail implements OnInit {
 
   private refreshAnalytics(): void {
     this.analyticsRefreshTrigger.update((value) => value + 1);
+  }
+
+  private refreshActivity(): void {
+    this.activityRefreshTrigger.update((value) => value + 1);
+  }
+
+  private refreshEmbeddedPanels(): void {
+    this.refreshAnalytics();
+    this.refreshActivity();
   }
 
   private applyArchiveRestoreResponse(
@@ -291,6 +302,7 @@ export class ProjectDetail implements OnInit {
       },
       viewerRole: project.viewerRole,
     });
+    this.refreshEmbeddedPanels();
   }
 
   private getArchiveRestoreErrorMessage(

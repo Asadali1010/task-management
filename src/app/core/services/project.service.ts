@@ -7,6 +7,7 @@ import {
   ArchiveProjectResponse,
   InviteMemberRequest,
   InviteMemberResponse,
+  ProjectActivityPageResponse,
   ProjectAnalytics,
   ProjectAnalyticsDateRange,
   ProjectDetail,
@@ -30,6 +31,21 @@ export class ProjectService {
 
   getProjectDetail(id: string): Observable<ProjectDetail> {
     return this.http.get<ProjectDetail>(`${environment.apiUrl}/projects/${id}`);
+  }
+
+  getProjectActivity(
+    projectId: string,
+    options: { page: number; pageSize: number },
+  ): Observable<ProjectActivityPageResponse> {
+    return this.http.get<ProjectActivityPageResponse>(
+      `${environment.apiUrl}/projects/${projectId}/activity`,
+      {
+        params: {
+          page: String(options.page),
+          pageSize: String(options.pageSize),
+        },
+      },
+    );
   }
 
   getProjectAnalytics(
