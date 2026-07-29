@@ -556,6 +556,73 @@ app-rich-text-editor.task-form-input-invalid .rich-text-editor {
   font-weight: 500;
 }
 
+.task-subtask-context {
+  margin: 0 0 var(--pt-md);
+  padding: var(--pt-sm) var(--pt-md);
+  font-size: var(--pt-fs-sm);
+  font-weight: 500;
+  color: var(--pt-muted);
+  background: var(--pt-bg-a);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-r-sm);
+}
+
+.task-subtask-progress {
+  margin-top: var(--pt-sm);
+}
+
+.task-subtask-progress-track {
+  height: 0.5rem;
+  margin-bottom: var(--pt-xs);
+  overflow: hidden;
+  background: var(--pt-border);
+  border-radius: 999px;
+}
+
+.task-subtask-progress-fill {
+  height: 100%;
+  background: var(--pt-primary);
+  border-radius: 999px;
+}
+
+.task-subtask-progress-label {
+  margin: 0;
+  font-size: var(--pt-fs-sm);
+  color: var(--pt-muted);
+}
+
+.task-subtask-progress-value {
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+.task-delete-confirm {
+  flex: 1 1 100%;
+  padding: var(--pt-md);
+  background: var(--pt-error-bg);
+  border: 1px solid var(--pt-error-bd);
+  border-radius: var(--pt-r-sm);
+}
+
+.task-delete-confirm-heading {
+  margin: 0 0 var(--pt-xs);
+  font-size: var(--pt-fs-sm);
+  font-weight: 600;
+  color: var(--pt-error-text);
+}
+
+.task-delete-confirm-desc {
+  margin: 0 0 var(--pt-sm);
+  font-size: var(--pt-fs-sm);
+  color: var(--pt-error-text);
+}
+
+.task-delete-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pt-sm);
+}
+
 .task-blocked-message {
   margin-top: var(--pt-xs);
   color: var(--pt-blocked-text);
@@ -782,5 +849,9 @@ app-rich-text-editor.task-form-input-invalid .rich-text-editor {
   .tasks-btn,
   .tasks-nav-link {
     transition: background-color var(--pt-t), border-color var(--pt-t), color var(--pt-t);
+  }
+
+  .task-subtask-progress-fill {
+    transition: width var(--pt-t);
   }
 }

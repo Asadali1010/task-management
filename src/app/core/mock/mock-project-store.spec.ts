@@ -154,6 +154,65 @@ describe('mock-project-store task CRUD', () => {
     });
   });
 
+  describe('subtask inheritance on create', () => {
+    it('inherits milestoneId and assigneeId from parent when omitted', () => {
+      const result = createTask('proj-1', {
+        title: 'New subtask',
+        description: 'Subtask description',
+        dueDate: '2026-08-01T00:00:00.000Z',
+        parentTaskId: 'task-3',
+      });
+
+      expect(result.kind).toBe('success');
+      if (result.kind === 'success') {
+        expect(result.task.milestoneId).toBe('ms-1');
+        expect(result.task.assigneeId).toBe('mem-3');
+        expect(result.task.parentTaskId).toBe('task-3');
+      }
+    });
+
+    it('keeps explicit milestoneId and assigneeId when provided', () => {
+      const result = createTask('proj-1', {
+        title: 'Custom subtask',
+        description: 'Subtask description',
+        assigneeId: 'mem-2',
+        dueDate: '2026-08-01T00:00:00.000Z',
+        milestoneId: 'ms-2',
+        parentTaskId: 'task-3',
+      });
+
+      expect(result.kind).toBe('success');
+      if (result.kind === 'success') {
+        expect(result.task.milestoneId).toBe('ms-2');
+        expect(result.task.assigneeId).toBe('mem-2');
+      }
+    });
+  });
+
+  describe('deleteTask subtaskStrategy', () => {
+    it('cascade soft-deletes parent and all descendants', () => {
+      deleteTask('proj-1', 'task-3', { subtaskStrategy: 'cascade' });
+
+      expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-3')).toBe(false);
+      expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-3a')).toBe(false);
+      expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-3b')).toBe(false);
+    });
+
+    it('promote clears parentTaskId on direct children and deletes only the parent', () => {
+      deleteTask('proj-1', 'task-3', { subtaskStrategy: 'promote' });
+
+      expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-3')).toBe(false);
+
+      const task3a = listTasks('proj-1')?.find((taskItem) => taskItem.id === 'task-3a');
+      const task3b = listTasks('proj-1')?.find((taskItem) => taskItem.id === 'task-3b');
+
+      expect(task3a).toBeDefined();
+      expect(task3b).toBeDefined();
+      expect(task3a?.parentTaskId).toBeNull();
+      expect(task3b?.parentTaskId).toBeNull();
+    });
+  });
+
   describe('soft delete and restore', () => {
     it('moves a deleted task from the active list to the deleted list within the grace period', () => {
       expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-1')).toBe(true);
