@@ -184,12 +184,18 @@ export interface TaskTemplate {
 export interface CreateTaskRequest {
   title: string;
   description: string;
-  assigneeId: string;
+  assigneeId?: string;
   dueDate: string;
   status?: TaskStatus;
   milestoneId?: string | null;
   parentTaskId?: string | null;
   recurringRule?: RecurringRule | null;
+}
+
+export type SubtaskDeleteStrategy = 'cascade' | 'promote';
+
+export interface DeleteTaskRequest {
+  subtaskStrategy?: SubtaskDeleteStrategy;
 }
 
 export interface UpdateTaskRequest {

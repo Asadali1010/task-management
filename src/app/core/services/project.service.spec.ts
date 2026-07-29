@@ -494,6 +494,37 @@ describe('ProjectService', () => {
 
     const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-1`);
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({});
+    req.flush(null);
+    expect(completed).toBe(true);
+  });
+
+  it('should delete a parent task with cascade subtask strategy in request body', () => {
+    let completed = false;
+    service.deleteTask('proj-1', 'task-3', { subtaskStrategy: 'cascade' }).subscribe({
+      next: () => {
+        completed = true;
+      },
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-3`);
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ subtaskStrategy: 'cascade' });
+    req.flush(null);
+    expect(completed).toBe(true);
+  });
+
+  it('should delete a parent task with promote subtask strategy in request body', () => {
+    let completed = false;
+    service.deleteTask('proj-1', 'task-3', { subtaskStrategy: 'promote' }).subscribe({
+      next: () => {
+        completed = true;
+      },
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/projects/proj-1/tasks/task-3`);
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.body).toEqual({ subtaskStrategy: 'promote' });
     req.flush(null);
     expect(completed).toBe(true);
   });

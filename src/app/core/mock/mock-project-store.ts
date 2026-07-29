@@ -4,6 +4,7 @@ import {
   BulkTaskActionResponse,
   CreateTaskFromTemplateRequest,
   CreateTaskRequest,
+  DeleteTaskRequest,
   DuplicateTaskRequest,
   Milestone,
   ProjectActivity,
@@ -534,24 +535,39 @@ export function createTask(projectId: string, request: CreateTaskRequest): TaskO
     return { kind: 'not_found' };
   }
 
+  let assigneeId = request.assigneeId;
+  let milestoneId: string | null =
+    request.milestoneId === undefined ? null : request.milestoneId;
+
+  if (request.parentTaskId) {
+    const parent = findTask(record, request.parentTaskId);
+    if (!parent) {
+      return { kind: 'not_found' };
+    }
+
+    if (assigneeId === undefined) {
+      assigneeId = parent.assigneeId;
+    }
+
+    if (request.milestoneId === undefined) {
+      milestoneId = parent.milestoneId ?? null;
+    }
+  }
+
   if (
     !validateTaskFields(record, {
       title: request.title,
       description: request.description,
-      assigneeId: request.assigneeId,
+      assigneeId,
       dueDate: request.dueDate,
     })
   ) {
     return { kind: 'validation_error' };
   }
 
-  if (request.parentTaskId && !findTask(record, request.parentTaskId)) {
-    return { kind: 'not_found' };
-  }
-
   if (
-    request.milestoneId &&
-    !record.milestones.some((milestone) => milestone.id === request.milestoneId)
+    milestoneId &&
+    !record.milestones.some((milestone) => milestone.id === milestoneId)
   ) {
     return { kind: 'not_found' };
   }
@@ -561,10 +577,10 @@ export function createTask(projectId: string, request: CreateTaskRequest): TaskO
     id: `task-${nextTaskId++}`,
     title: request.title.trim(),
     status: request.status ?? 'open',
-    milestoneId: request.milestoneId ?? null,
+    milestoneId,
     parentTaskId: request.parentTaskId ?? null,
     description: normalizeRichTextValue(request.description),
-    assigneeId: request.assigneeId,
+    assigneeId,
     dueDate: request.dueDate,
     recurringRule: request.recurringRule ?? null,
   };
@@ -665,7 +681,11 @@ export function updateTask(
   return { kind: 'success', task: { ...updatedTask } };
 }
 
-export function deleteTask(projectId: string, taskId: string): boolean {
+export function deleteTask(
+  projectId: string,
+  taskId: string,
+  request: DeleteTaskRequest = {},
+): boolean {
   const record = getRecord(projectId);
   if (!record) {
     return false;
@@ -678,10 +698,19 @@ export function deleteTask(projectId: string, taskId: string): boolean {
 
   const actor = defaultActor(record);
   const deletedAt = new Date().toISOString();
-  const idsToSoftDelete = new Set(collectDescendantTaskIds(record, taskId));
+  const strategy = request.subtaskStrategy ?? 'cascade';
 
-  for (const id of idsToSoftDelete) {
-    softDeleteTask(record, id, deletedAt);
+  if (strategy === 'promote') {
+    record.tasks = record.tasks.map((taskItem) =>
+      taskItem.parentTaskId === taskId ? { ...taskItem, parentTaskId: null } : taskItem,
+    );
+    softDeleteTask(record, taskId, deletedAt);
+  } else {
+    const idsToSoftDelete = new Set(collectDescendantTaskIds(record, taskId));
+
+    for (const id of idsToSoftDelete) {
+      softDeleteTask(record, id, deletedAt);
+    }
   }
 
   recalculateTaskMetrics(record);

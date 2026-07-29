@@ -11,6 +11,7 @@ import {
   CreateMilestoneRequest,
   CreateTaskFromTemplateRequest,
   CreateTaskRequest,
+  DeleteTaskRequest,
   DuplicateTaskRequest,
   InviteMemberRequest,
   InviteMemberResponse,
@@ -150,8 +151,14 @@ export class ProjectService {
     );
   }
 
-  deleteTask(projectId: string, taskId: string): Observable<void> {
-    return this.http.delete<void>(`${environment.apiUrl}/projects/${projectId}/tasks/${taskId}`);
+  deleteTask(
+    projectId: string,
+    taskId: string,
+    request: DeleteTaskRequest = {},
+  ): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/projects/${projectId}/tasks/${taskId}`, {
+      body: request,
+    });
   }
 
   duplicateTask(

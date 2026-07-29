@@ -34,6 +34,7 @@ describe('ProjectTasks', () => {
     restoreTask: ReturnType<typeof vi.fn>;
     addTaskDependency: ReturnType<typeof vi.fn>;
     removeTaskDependency: ReturnType<typeof vi.fn>;
+    listMilestones: ReturnType<typeof vi.fn>;
   };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
@@ -145,6 +146,7 @@ describe('ProjectTasks', () => {
       restoreTask: vi.fn(),
       addTaskDependency: vi.fn(),
       removeTaskDependency: vi.fn(),
+      listMilestones: vi.fn(),
     };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
@@ -241,6 +243,14 @@ describe('ProjectTasks', () => {
     projectService.listTaskTemplates.mockReturnValue(of({ templates: mockTemplates }));
     projectService.listTaskDependencies.mockReturnValue(of({ dependencies: mockDependencies }));
     projectService.listDeletedTasks.mockReturnValue(of({ tasks: [] }));
+    projectService.listMilestones.mockReturnValue(
+      of({
+        milestones: [
+          { id: 'ms-1', title: 'Launch', dueDate: '2026-08-01T00:00:00.000Z', progressPercent: 67, isOverdue: false },
+          { id: 'ms-2', title: 'Migration', dueDate: '2026-06-01T00:00:00.000Z', progressPercent: 50, isOverdue: false },
+        ],
+      }),
+    );
   }
 
   function fillCreateForm(compiled: HTMLElement): void {
@@ -729,6 +739,111 @@ describe('ProjectTasks', () => {
       card.textContent?.includes(title),
     ) as HTMLElement | undefined;
   }
+
+  it('should show subtask progress on parent task cards', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    const parentCard = getTaskCardByTitle('Write launch blog post');
+    expect(parentCard).toBeDefined();
+
+    const progressEl = parentCard!.querySelector('.task-subtask-progress');
+    expect(progressEl).not.toBeNull();
+    expect(progressEl!.getAttribute('aria-label')).toBe('Subtask progress: 1 of 1 complete');
+    expect(parentCard!.textContent).toContain('1/1');
+    expect(parentCard!.textContent).toContain('subtasks complete (100%)');
+
+    const fillEl = parentCard!.querySelector('.task-subtask-progress-fill') as HTMLElement;
+    expect(fillEl.style.width).toBe('100%');
+  });
+
+  it('should show delete confirmation when deleting a parent with subtasks', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    const deleteButton = getCompiled().querySelector(
+      '[aria-label="Delete task Write launch blog post"]',
+    ) as HTMLButtonElement;
+    deleteButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.deleteTask).not.toHaveBeenCalled();
+    expect(getCompiled().textContent).toContain('Delete task with subtasks?');
+    expect(getCompiled().textContent).toContain('1 subtask');
+    expect(getCompiled().textContent).toContain('Delete all subtasks');
+    expect(getCompiled().textContent).toContain('Promote subtasks');
+  });
+
+  it('should delete parent with cascade strategy when confirmed', () => {
+    mockLoadSuccess();
+    projectService.deleteTask.mockReturnValue(of(undefined));
+
+    createComponent();
+
+    const deleteButton = getCompiled().querySelector(
+      '[aria-label="Delete task Write launch blog post"]',
+    ) as HTMLButtonElement;
+    deleteButton.click();
+    fixture.detectChanges();
+
+    const cascadeButton = getCompiled().querySelector(
+      '[aria-label="Delete Write launch blog post and all 1 subtasks"]',
+    ) as HTMLButtonElement;
+    cascadeButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.deleteTask).toHaveBeenCalledWith('proj-1', 'task-3', {
+      subtaskStrategy: 'cascade',
+    });
+  });
+
+  it('should delete parent with promote strategy when confirmed', () => {
+    mockLoadSuccess();
+    projectService.deleteTask.mockReturnValue(of(undefined));
+
+    createComponent();
+
+    const deleteButton = getCompiled().querySelector(
+      '[aria-label="Delete task Write launch blog post"]',
+    ) as HTMLButtonElement;
+    deleteButton.click();
+    fixture.detectChanges();
+
+    const promoteButton = getCompiled().querySelector(
+      '[aria-label="Delete Write launch blog post and promote subtasks to top level"]',
+    ) as HTMLButtonElement;
+    promoteButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.deleteTask).toHaveBeenCalledWith('proj-1', 'task-3', {
+      subtaskStrategy: 'promote',
+    });
+  });
+
+  it('should cancel delete confirmation for parent with subtasks', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    const deleteButton = getCompiled().querySelector(
+      '[aria-label="Delete task Write launch blog post"]',
+    ) as HTMLButtonElement;
+    deleteButton.click();
+    fixture.detectChanges();
+
+    expect(getCompiled().textContent).toContain('Delete task with subtasks?');
+
+    const cancelButton = Array.from(
+      getCompiled().querySelectorAll('.task-delete-confirm-actions button'),
+    ).find((button) => button.textContent?.trim() === 'Cancel') as HTMLButtonElement;
+    cancelButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.deleteTask).not.toHaveBeenCalled();
+    expect(getCompiled().textContent).not.toContain('Delete task with subtasks?');
+    expect(
+      getCompiled().querySelector('[aria-label="Delete task Write launch blog post"]'),
+    ).not.toBeNull();
+  });
 
   it('should create a subtask with parentTaskId when subtask form is submitted', () => {
     mockLoadSuccess();

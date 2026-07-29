@@ -56,6 +56,11 @@
           </button>
         }
       </div>
+      @if (subtaskParentId(); as parentId) {
+        @if (getSubtaskMilestoneContext(parentId); as milestoneContext) {
+          <p class="task-subtask-context" id="subtask-milestone-context">{{ milestoneContext }}</p>
+        }
+      }
       <form
         class="task-create-form"
         [formGroup]="createForm"
@@ -532,6 +537,31 @@
                           }}</time>
                         </p>
                       }
+                      @if (getSubtaskProgress(row.node); as progress) {
+                        <div
+                          class="task-subtask-progress"
+                          [attr.aria-label]="
+                            'Subtask progress: ' +
+                            progress.completed +
+                            ' of ' +
+                            progress.total +
+                            ' complete'
+                          "
+                        >
+                          <div class="task-subtask-progress-track" aria-hidden="true">
+                            <div
+                              class="task-subtask-progress-fill"
+                              [style.width.%]="progress.percent"
+                            ></div>
+                          </div>
+                          <p class="task-subtask-progress-label">
+                            <span class="task-subtask-progress-value"
+                              >{{ progress.completed }}/{{ progress.total }}</span
+                            >
+                            subtasks complete ({{ progress.percent }}%)
+                          </p>
+                        </div>
+                      }
                       @if (isTaskBlocked(row.node.id)) {
                         <p class="task-blocked-message" role="status">
                           Waiting on: {{ getBlockingTaskTitles(row.node.id) }}
@@ -691,6 +721,68 @@
                     </div>
                   </div>
                   <div class="task-card-actions">
+                    @if (deleteConfirmTaskId() === row.node.id) {
+                      <div
+                        class="task-delete-confirm"
+                        role="alertdialog"
+                        [attr.aria-labelledby]="'delete-confirm-heading-' + row.node.id"
+                        [attr.aria-describedby]="'delete-confirm-desc-' + row.node.id"
+                      >
+                        <h4
+                          [id]="'delete-confirm-heading-' + row.node.id"
+                          class="task-delete-confirm-heading"
+                        >
+                          Delete task with subtasks?
+                        </h4>
+                        <p [id]="'delete-confirm-desc-' + row.node.id" class="task-delete-confirm-desc">
+                          “{{ row.node.title }}” has {{ row.node.subtasks.length }} subtask{{
+                            row.node.subtasks.length === 1 ? '' : 's'
+                          }}. Choose how to handle them before deleting.
+                        </p>
+                        <div class="task-delete-confirm-actions">
+                          <button
+                            type="button"
+                            class="tasks-btn tasks-btn-danger tasks-btn-sm"
+                            (click)="confirmDeleteTask(row.node.id, 'cascade')"
+                            [disabled]="actingTaskId() === row.node.id"
+                            [attr.aria-label]="
+                              'Delete ' +
+                              row.node.title +
+                              ' and all ' +
+                              row.node.subtasks.length +
+                              ' subtasks'
+                            "
+                          >
+                            @if (actingTaskId() === row.node.id) {
+                              Deleting…
+                            } @else {
+                              Delete all subtasks
+                            }
+                          </button>
+                          <button
+                            type="button"
+                            class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                            (click)="confirmDeleteTask(row.node.id, 'promote')"
+                            [disabled]="actingTaskId() === row.node.id"
+                            [attr.aria-label]="
+                              'Delete ' +
+                              row.node.title +
+                              ' and promote subtasks to top level'
+                            "
+                          >
+                            Promote subtasks
+                          </button>
+                          <button
+                            type="button"
+                            class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                            (click)="cancelDeleteConfirm()"
+                            [disabled]="actingTaskId() === row.node.id"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
                     <button
                       type="button"
                       class="tasks-btn tasks-btn-secondary tasks-btn-sm"
@@ -731,7 +823,7 @@
                     <button
                       type="button"
                       class="tasks-btn tasks-btn-danger tasks-btn-sm"
-                      (click)="deleteTask(row.node.id)"
+                      (click)="requestDeleteTask(row.node.id)"
                       [disabled]="actingTaskId() === row.node.id"
                       [attr.aria-label]="'Delete task ' + row.node.title"
                     >
@@ -741,6 +833,7 @@
                         Delete
                       }
                     </button>
+                    }
                   </div>
                 </article>
               }

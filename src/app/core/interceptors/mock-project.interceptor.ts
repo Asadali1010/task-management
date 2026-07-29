@@ -10,6 +10,7 @@ import {
   CreateMilestoneRequest,
   CreateTaskFromTemplateRequest,
   CreateTaskRequest,
+  DeleteTaskRequest,
   DuplicateTaskRequest,
   InviteMemberRequest,
   InviteMemberResponse,
@@ -256,7 +257,8 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   if (req.method === 'DELETE' && taskMatch) {
-    const deleted = mockStore.deleteTask(taskMatch[1], taskMatch[2]);
+    const body = (req.body ?? {}) as DeleteTaskRequest;
+    const deleted = mockStore.deleteTask(taskMatch[1], taskMatch[2], body);
     return deleted ? jsonResponse<void>(undefined) : notFound(req.url);
   }
 

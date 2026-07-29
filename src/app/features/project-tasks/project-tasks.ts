@@ -10,7 +10,9 @@ import { forkJoin } from 'rxjs';
 import { isRichTextEmpty, sanitizeRichTextHtml } from '../../core/utils/rich-text-sanitize';
 import { RichTextEditor } from '../../shared/rich-text-editor/rich-text-editor';
 import {
+  Milestone,
   ProjectMember,
+  SubtaskDeleteStrategy,
   Task,
   TaskDependency,
   TaskHierarchyNode,
@@ -29,6 +31,12 @@ interface TaskLinkDraft {
 interface FlatTaskRow {
   node: TaskHierarchyNode;
   depth: number;
+}
+
+interface SubtaskProgress {
+  completed: number;
+  total: number;
+  percent: number;
 }
 
 const richTextRequired: ValidatorFn = (control): ValidationErrors | null =>
@@ -58,6 +66,8 @@ export class ProjectTasks implements OnInit {
   protected readonly selectedTaskIds = signal<Set<string>>(new Set());
   protected readonly editingTaskId = signal<string | null>(null);
   protected readonly subtaskParentId = signal<string | null>(null);
+  protected readonly deleteConfirmTaskId = signal<string | null>(null);
+  protected readonly milestones = signal<Milestone[]>([]);
   protected readonly historyTaskId = signal<string | null>(null);
   protected readonly taskHistory = signal<TaskHistoryEntry[]>([]);
   protected readonly isHistoryLoading = signal(false);
@@ -181,13 +191,15 @@ export class ProjectTasks implements OnInit {
   }
 
   protected startSubtask(parentId: string): void {
+    const parent = this.flatTasks().find((task) => task.id === parentId);
     this.subtaskParentId.set(parentId);
     this.editingTaskId.set(null);
     this.historyTaskId.set(null);
+    this.deleteConfirmTaskId.set(null);
     this.createForm.patchValue({
       title: '',
       description: '',
-      assigneeId: '',
+      assigneeId: parent?.assigneeId ?? '',
       dueDate: '',
       status: 'open',
     });
@@ -251,36 +263,51 @@ export class ProjectTasks implements OnInit {
       });
   }
 
-  protected deleteTask(taskId: string): void {
-    const projectId = this.projectId();
-    if (!projectId || this.actingTaskId()) {
+  protected requestDeleteTask(taskId: string): void {
+    const node = this.findHierarchyNode(taskId);
+    if (node && node.subtasks.length > 0) {
+      this.deleteConfirmTaskId.set(taskId);
       return;
     }
 
-    this.actingTaskId.set(taskId);
-    this.actionError.set(null);
+    this.executeDeleteTask(taskId);
+  }
 
-    this.projectService.deleteTask(projectId, taskId).subscribe({
-      next: () => {
-        this.actingTaskId.set(null);
-        this.selectedTaskIds.update((current) => {
-          const next = new Set(current);
-          next.delete(taskId);
-          return next;
-        });
-        if (this.historyTaskId() === taskId) {
-          this.historyTaskId.set(null);
-        }
-        if (this.editingTaskId() === taskId) {
-          this.editingTaskId.set(null);
-        }
-        this.reloadTasks(projectId);
-      },
-      error: () => {
-        this.actingTaskId.set(null);
-        this.actionError.set('Unable to delete task. Try again in a moment.');
-      },
-    });
+  protected cancelDeleteConfirm(): void {
+    this.deleteConfirmTaskId.set(null);
+  }
+
+  protected confirmDeleteTask(taskId: string, subtaskStrategy: SubtaskDeleteStrategy): void {
+    this.executeDeleteTask(taskId, subtaskStrategy);
+  }
+
+  protected getSubtaskProgress(node: TaskHierarchyNode): SubtaskProgress | null {
+    if (node.subtasks.length === 0) {
+      return null;
+    }
+
+    const completed = node.subtasks.filter((subtask) => subtask.status === 'done').length;
+    const total = node.subtasks.length;
+
+    return {
+      completed,
+      total,
+      percent: Math.round((completed / total) * 100),
+    };
+  }
+
+  protected getSubtaskMilestoneContext(parentId: string): string | null {
+    const parent = this.flatTasks().find((task) => task.id === parentId);
+    if (!parent) {
+      return null;
+    }
+
+    if (!parent.milestoneId) {
+      return 'No milestone linked';
+    }
+
+    const milestoneTitle = this.milestones().find((milestone) => milestone.id === parent.milestoneId)?.title;
+    return milestoneTitle ? `Inherits milestone: ${milestoneTitle}` : 'Inherits parent milestone';
   }
 
   protected duplicateTask(taskId: string): void {
@@ -630,14 +657,16 @@ export class ProjectTasks implements OnInit {
       templates: this.projectService.listTaskTemplates(projectId),
       dependencies: this.projectService.listTaskDependencies(projectId),
       deleted: this.projectService.listDeletedTasks(projectId),
+      milestones: this.projectService.listMilestones(projectId),
     }).subscribe({
-      next: ({ detail, hierarchy, flat, templates, dependencies, deleted }) => {
+      next: ({ detail, hierarchy, flat, templates, dependencies, deleted, milestones }) => {
         this.projectMembers.set(detail.members);
         this.taskHierarchy.set(hierarchy.tasks);
         this.flatTasks.set(flat.tasks);
         this.templates.set(templates.templates);
         this.dependencies.set(dependencies.dependencies);
         this.deletedTasks.set(deleted.tasks);
+        this.milestones.set(milestones.milestones);
         this.isLoading.set(false);
         this.errorMessage.set(null);
       },
@@ -662,6 +691,56 @@ export class ProjectTasks implements OnInit {
         this.deletedTasks.set(deleted.tasks);
       },
     });
+  }
+
+  private executeDeleteTask(taskId: string, subtaskStrategy?: SubtaskDeleteStrategy): void {
+    const projectId = this.projectId();
+    if (!projectId || this.actingTaskId()) {
+      return;
+    }
+
+    this.actingTaskId.set(taskId);
+    this.actionError.set(null);
+
+    this.projectService
+      .deleteTask(projectId, taskId, subtaskStrategy ? { subtaskStrategy } : {})
+      .subscribe({
+        next: () => {
+          this.actingTaskId.set(null);
+          this.deleteConfirmTaskId.set(null);
+          this.selectedTaskIds.update((current) => {
+            const next = new Set(current);
+            next.delete(taskId);
+            return next;
+          });
+          if (this.historyTaskId() === taskId) {
+            this.historyTaskId.set(null);
+          }
+          if (this.editingTaskId() === taskId) {
+            this.editingTaskId.set(null);
+          }
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.actingTaskId.set(null);
+          this.actionError.set('Unable to delete task. Try again in a moment.');
+        },
+      });
+  }
+
+  private findHierarchyNode(taskId: string, nodes = this.taskHierarchy()): TaskHierarchyNode | null {
+    for (const node of nodes) {
+      if (node.id === taskId) {
+        return node;
+      }
+
+      const match = this.findHierarchyNode(taskId, node.subtasks);
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
   }
 
   private flattenHierarchy(nodes: TaskHierarchyNode[], depth = 0): FlatTaskRow[] {
