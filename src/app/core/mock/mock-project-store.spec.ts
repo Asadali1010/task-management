@@ -4,6 +4,9 @@ import {
   addTaskDependency,
   createTask,
   deleteTask,
+  duplicateTask,
+  getTask,
+  getTaskHistory,
   listDeletedTasks,
   listTaskDependencies,
   listTasks,
@@ -247,6 +250,143 @@ describe('mock-project-store task CRUD', () => {
       expect(restoreTask('proj-1', 'task-1')).toBeUndefined();
       expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-1')).toBe(false);
     });
+  });
+});
+
+describe('mock-project-store duplicateTask', () => {
+  beforeEach(() => {
+    resetMockStore();
+  });
+
+  it('copies relevant fields from the source task with a default title suffix', () => {
+    const source = getTask('proj-1', 'task-1');
+    expect(source).toBeDefined();
+
+    const duplicate = duplicateTask('proj-1', 'task-1');
+
+    expect(duplicate).toBeDefined();
+    expect(duplicate?.id).not.toBe('task-1');
+    expect(duplicate?.title).toBe('Update homepage hero (copy)');
+    expect(duplicate?.description).toBe(source?.description);
+    expect(duplicate?.assigneeId).toBe(source?.assigneeId);
+    expect(duplicate?.status).toBe(source?.status);
+    expect(duplicate?.milestoneId).toBe(source?.milestoneId);
+    expect(duplicate?.dueDate).toBe(source?.dueDate);
+  });
+
+  it('applies editable field overrides before creating the duplicate', () => {
+    const recurringRule = { frequency: 'weekly' as const, interval: 2, endDate: null };
+
+    const duplicate = duplicateTask('proj-1', 'task-1', {
+      title: 'Custom duplicate title',
+      description: '<p>Custom duplicate description</p>',
+      assigneeId: 'mem-2',
+      dueDate: '2026-09-15T00:00:00.000Z',
+      status: 'open',
+      milestoneId: 'ms-2',
+      recurringRule,
+    });
+
+    expect(duplicate).toBeDefined();
+    expect(duplicate?.title).toBe('Custom duplicate title');
+    expect(duplicate?.description).toBe('<p>Custom duplicate description</p>');
+    expect(duplicate?.assigneeId).toBe('mem-2');
+    expect(duplicate?.dueDate).toBe('2026-09-15T00:00:00.000Z');
+    expect(duplicate?.status).toBe('open');
+    expect(duplicate?.milestoneId).toBe('ms-2');
+    expect(duplicate?.recurringRule).toEqual(recurringRule);
+  });
+
+  it('creates an independent task that does not share history with the source', () => {
+    const sourceHistory = getTaskHistory('proj-1', 'task-1');
+    expect(sourceHistory?.some((entry) => entry.id === 'hist-1')).toBe(true);
+
+    const duplicate = duplicateTask('proj-1', 'task-1');
+    expect(duplicate).toBeDefined();
+
+    const duplicateHistory = getTaskHistory('proj-1', duplicate!.id);
+    expect(duplicateHistory?.some((entry) => entry.id === 'hist-1')).toBe(false);
+    expect(duplicateHistory?.some((entry) => entry.action === 'duplicated')).toBe(true);
+    expect(duplicateHistory?.some((entry) => entry.action === 'created')).toBe(true);
+
+    updateTask('proj-1', duplicate!.id, { title: 'Changed duplicate title' });
+
+    expect(getTask('proj-1', 'task-1')?.title).toBe('Update homepage hero');
+    expect(getTask('proj-1', duplicate!.id)?.title).toBe('Changed duplicate title');
+  });
+
+  it('optionally duplicates subtasks under the new parent task', () => {
+    const duplicate = duplicateTask('proj-1', 'task-3', { includeSubtasks: true });
+
+    expect(duplicate).toBeDefined();
+
+    const activeTasksAfterDuplicate = listTasks('proj-1') ?? [];
+    const duplicatedSubtasks = activeTasksAfterDuplicate.filter(
+      (taskItem) => taskItem.parentTaskId === duplicate!.id,
+    );
+
+    expect(duplicatedSubtasks).toHaveLength(2);
+    expect(duplicatedSubtasks.map((taskItem) => taskItem.title).sort()).toEqual([
+      'Draft blog outline (copy)',
+      'Review blog draft (copy)',
+    ]);
+  });
+
+  it('does not duplicate subtasks when includeSubtasks is false', () => {
+    const duplicate = duplicateTask('proj-1', 'task-3', { includeSubtasks: false });
+
+    expect(duplicate).toBeDefined();
+    expect(
+      listTasks('proj-1')?.some((taskItem) => taskItem.parentTaskId === duplicate!.id),
+    ).toBe(false);
+  });
+
+  it('optionally copies and remaps outgoing dependency links to the duplicate task id', () => {
+    const duplicate = duplicateTask('proj-1', 'task-5', { includeLinks: true });
+
+    expect(duplicate).toBeDefined();
+
+    const dependencies = listTaskDependencies('proj-1') ?? [];
+    const remappedOutgoing = dependencies.find(
+      (dependency) =>
+        dependency.taskId === duplicate!.id && dependency.dependsOnTaskId === 'task-4',
+    );
+
+    expect(remappedOutgoing).toBeDefined();
+    expect(remappedOutgoing?.linkType).toBe('blocks');
+    expect(dependencies.some((dependency) => dependency.id === 'dep-1')).toBe(true);
+  });
+
+  it('does not copy dependency links when includeLinks is false', () => {
+    const beforeCount = listTaskDependencies('proj-1')?.length ?? 0;
+
+    const duplicate = duplicateTask('proj-1', 'task-5', { includeLinks: false });
+
+    expect(duplicate).toBeDefined();
+    expect(listTaskDependencies('proj-1')?.length).toBe(beforeCount);
+    expect(
+      listTaskDependencies('proj-1')?.some((dependency) => dependency.taskId === duplicate!.id),
+    ).toBe(false);
+  });
+
+  it('remaps incoming dependency links to the duplicate task id', () => {
+    addTaskDependency('proj-1', 'task-6', {
+      dependsOnTaskId: 'task-2',
+      linkType: 'relates_to',
+    });
+
+    const duplicate = duplicateTask('proj-1', 'task-2', { includeLinks: true });
+
+    expect(duplicate).toBeDefined();
+
+    const dependencies = listTaskDependencies('proj-1') ?? [];
+    const remappedIncoming = dependencies.find(
+      (dependency) =>
+        dependency.taskId === 'task-6' && dependency.dependsOnTaskId === duplicate!.id,
+    );
+
+    expect(remappedIncoming).toBeDefined();
+    expect(remappedIncoming?.linkType).toBe('relates_to');
   });
 });
 

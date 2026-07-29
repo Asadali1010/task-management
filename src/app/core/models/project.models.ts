@@ -211,7 +211,14 @@ export interface UpdateTaskRequest {
 
 export interface DuplicateTaskRequest {
   title?: string;
+  description?: string;
+  assigneeId?: string;
+  dueDate?: string;
+  status?: TaskStatus;
+  milestoneId?: string | null;
+  recurringRule?: RecurringRule | null;
   includeSubtasks?: boolean;
+  includeLinks?: boolean;
 }
 
 export interface CreateTaskFromTemplateRequest {

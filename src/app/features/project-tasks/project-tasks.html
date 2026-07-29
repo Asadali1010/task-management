@@ -54,12 +54,27 @@
           >
             Cancel subtask
           </button>
+        } @else if (duplicateSourceTaskId()) {
+          <button
+            type="button"
+            class="tasks-btn tasks-btn-secondary"
+            (click)="cancelDuplicate()"
+            aria-label="Cancel task duplication"
+          >
+            Cancel duplicate
+          </button>
         }
       </div>
       @if (subtaskParentId(); as parentId) {
         @if (getSubtaskMilestoneContext(parentId); as milestoneContext) {
           <p class="task-subtask-context" id="subtask-milestone-context">{{ milestoneContext }}</p>
         }
+      }
+      @if (duplicateSourceTaskId()) {
+        <p class="task-duplicate-context" id="duplicate-context">
+          Review and edit the copied fields below. Subtasks and task links are optional — leave
+          unchecked to exclude them from the duplicate.
+        </p>
       }
       <form
         class="task-create-form"
@@ -198,13 +213,40 @@
             </div>
           }
         </fieldset>
+        @if (duplicateSourceTaskId()) {
+          <fieldset class="task-duplicate-fieldset" aria-describedby="duplicate-context">
+            <legend class="task-form-label">Optional copy options</legend>
+            <label class="task-checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="duplicateIncludeSubtasks()"
+                (change)="duplicateIncludeSubtasks.set($any($event.target).checked)"
+              />
+              Also copy subtasks (optional — unchecked by default)
+            </label>
+            <label class="task-checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="duplicateIncludeLinks()"
+                (change)="duplicateIncludeLinks.set($any($event.target).checked)"
+              />
+              Also copy task links (optional — unchecked by default)
+            </label>
+          </fieldset>
+        }
         <button
           type="submit"
           class="tasks-btn tasks-btn-primary"
           [disabled]="createForm.invalid || isCreating()"
         >
           @if (isCreating()) {
-            Creating…
+            @if (duplicateSourceTaskId()) {
+              Duplicating…
+            } @else {
+              Creating…
+            }
+          } @else if (duplicateSourceTaskId()) {
+            Save duplicate
           } @else if (subtaskParentId()) {
             Add subtask
           } @else {
@@ -300,14 +342,6 @@
       <div class="tasks-panel-header-row">
         <h2 id="list-heading" class="tasks-panel-heading">All tasks</h2>
         <div class="tasks-list-controls">
-          <label class="task-checkbox-label task-duplicate-options">
-            <input
-              type="checkbox"
-              [checked]="duplicateIncludeSubtasks()"
-              (change)="duplicateIncludeSubtasks.set($any($event.target).checked)"
-            />
-            Include subtasks when duplicating
-          </label>
           <label class="task-checkbox-label tasks-select-all">
             <input
               type="checkbox"
@@ -802,15 +836,10 @@
                     <button
                       type="button"
                       class="tasks-btn tasks-btn-secondary tasks-btn-sm"
-                      (click)="duplicateTask(row.node.id)"
-                      [disabled]="actingTaskId() === row.node.id"
+                      (click)="startDuplicate(row.node)"
                       [attr.aria-label]="'Duplicate task ' + row.node.title"
                     >
-                      @if (actingTaskId() === row.node.id) {
-                        Duplicating…
-                      } @else {
-                        Duplicate
-                      }
+                      Duplicate
                     </button>
                     <button
                       type="button"

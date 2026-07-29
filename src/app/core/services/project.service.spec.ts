@@ -550,6 +550,39 @@ describe('ProjectService', () => {
     req.flush(duplicatedTask);
   });
 
+  it('should duplicate a task with includeLinks and field overrides in POST body', () => {
+    const duplicateBody = {
+      title: 'Renamed duplicate',
+      description: 'Edited description for duplicate',
+      assigneeId: 'mem-2',
+      dueDate: '2026-09-01T00:00:00.000Z',
+      status: 'open' as const,
+      includeSubtasks: true,
+      includeLinks: true,
+      recurringRule: null,
+    };
+    const duplicatedTask: Task = {
+      id: 'task-102',
+      title: 'Renamed duplicate',
+      status: 'open',
+      milestoneId: 'ms-1',
+      assigneeId: 'mem-2',
+    };
+
+    service.duplicateTask('proj-1', 'task-1', duplicateBody).subscribe((response) => {
+      expect(response).toEqual(duplicatedTask);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-1/duplicate`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(duplicateBody);
+    expect(req.request.body.includeLinks).toBe(true);
+    expect(req.request.body.title).toBe('Renamed duplicate');
+    req.flush(duplicatedTask);
+  });
+
   it('should fetch task hierarchy for a project', () => {
     const hierarchyResponse = {
       tasks: [
