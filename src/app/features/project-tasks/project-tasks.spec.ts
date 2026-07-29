@@ -571,23 +571,123 @@ describe('ProjectTasks', () => {
     expect(projectService.listDeletedTasks).toHaveBeenCalledTimes(2);
   });
 
-  it('should duplicate a task when duplicate is clicked', () => {
-    mockLoadSuccess();
-    projectService.duplicateTask.mockReturnValue(
-      of({ id: 'task-100', title: 'Update homepage hero (copy)', status: 'done', milestoneId: 'ms-1' }),
-    );
-
-    createComponent();
-
+  function startDuplicateFlow(): void {
     const duplicateButton = getCompiled().querySelector(
       '[aria-label="Duplicate task Update homepage hero"]',
     ) as HTMLButtonElement;
     duplicateButton.click();
     fixture.detectChanges();
+  }
+
+  it('should pre-fill create form when duplicate is started', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    startDuplicateFlow();
+
+    expect(projectService.duplicateTask).not.toHaveBeenCalled();
+
+    const titleInput = getCompiled().querySelector('#task-title') as HTMLInputElement;
+    expect(titleInput.value).toBe('Update homepage hero (copy)');
+
+    const assigneeSelect = getCompiled().querySelector('#task-assignee') as HTMLSelectElement;
+    expect(assigneeSelect.value).toBe('mem-1');
+
+    const dueDateInput = getCompiled().querySelector('#task-due-date') as HTMLInputElement;
+    expect(dueDateInput.value).toBe('2026-07-01');
+
+    const component = fixture.componentInstance as ProjectTasks & {
+      createForm: { getRawValue: () => object };
+    };
+    expect(component.createForm.getRawValue()).toEqual(
+      expect.objectContaining({
+        title: 'Update homepage hero (copy)',
+        description: 'Refresh the homepage hero section.',
+        assigneeId: 'mem-1',
+        dueDate: '2026-07-01',
+        status: 'done',
+      }),
+    );
+
+    expect(getCompiled().textContent).toContain('Optional copy options');
+    expect(getCompiled().textContent).toContain('Save duplicate');
+    expect(
+      getCompiled().querySelector('[aria-label="Cancel task duplication"]'),
+    ).not.toBeNull();
+  });
+
+  it('should call duplicateTask with edited fields and copy options on save', () => {
+    mockLoadSuccess();
+    projectService.duplicateTask.mockReturnValue(
+      of({
+        id: 'task-100',
+        title: 'Edited duplicate title',
+        status: 'open',
+        milestoneId: 'ms-1',
+        assigneeId: 'mem-2',
+      }),
+    );
+
+    createComponent();
+    startDuplicateFlow();
+
+    const titleInput = getCompiled().querySelector('#task-title') as HTMLInputElement;
+    titleInput.value = 'Edited duplicate title';
+    titleInput.dispatchEvent(new Event('input'));
+
+    const assigneeSelect = getCompiled().querySelector('#task-assignee') as HTMLSelectElement;
+    assigneeSelect.value = 'mem-2';
+    assigneeSelect.dispatchEvent(new Event('change'));
+
+    const statusSelect = getCompiled().querySelector('#task-status') as HTMLSelectElement;
+    statusSelect.value = 'open';
+    statusSelect.dispatchEvent(new Event('change'));
+
+    const copyOptions = getCompiled().querySelectorAll('.task-duplicate-fieldset input[type="checkbox"]');
+    (copyOptions[0] as HTMLInputElement).click();
+    (copyOptions[1] as HTMLInputElement).click();
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('.task-create-form'))!.triggerEventHandler('ngSubmit', null);
+    fixture.detectChanges();
 
     expect(projectService.duplicateTask).toHaveBeenCalledWith('proj-1', 'task-1', {
-      includeSubtasks: false,
+      title: 'Edited duplicate title',
+      description: 'Refresh the homepage hero section.',
+      assigneeId: 'mem-2',
+      dueDate: '2026-07-01T00:00:00.000Z',
+      status: 'open',
+      includeSubtasks: true,
+      includeLinks: true,
+      recurringRule: null,
     });
+    expect(projectService.getTaskHierarchy).toHaveBeenCalledTimes(2);
+  });
+
+  it('should clear duplicate mode when cancel is clicked', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    startDuplicateFlow();
+    expect(getCompiled().textContent).toContain('Optional copy options');
+
+    const cancelButton = getCompiled().querySelector(
+      '[aria-label="Cancel task duplication"]',
+    ) as HTMLButtonElement;
+    cancelButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.duplicateTask).not.toHaveBeenCalled();
+    expect(getCompiled().textContent).not.toContain('Optional copy options');
+    expect(
+      getCompiled().querySelector('[aria-label="Cancel task duplication"]'),
+    ).toBeNull();
+    expect(getCompiled().textContent).toContain('Create task');
+
+    const component = fixture.componentInstance as ProjectTasks & {
+      duplicateSourceTaskId: () => string | null;
+    };
+    expect(component.duplicateSourceTaskId()).toBeNull();
   });
 
   it('should create a task with rich text description and render sanitized HTML after reload', () => {

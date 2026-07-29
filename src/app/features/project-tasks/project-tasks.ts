@@ -75,7 +75,9 @@ export class ProjectTasks implements OnInit {
   protected readonly isSaving = signal(false);
   protected readonly isBulkActing = signal(false);
   protected readonly actingTaskId = signal<string | null>(null);
+  protected readonly duplicateSourceTaskId = signal<string | null>(null);
   protected readonly duplicateIncludeSubtasks = signal(false);
+  protected readonly duplicateIncludeLinks = signal(false);
   protected readonly projectMembers = signal<ProjectMember[]>([]);
   protected readonly deletedTasks = signal<Task[]>([]);
   protected readonly restoringTaskId = signal<string | null>(null);
@@ -146,6 +148,12 @@ export class ProjectTasks implements OnInit {
       return;
     }
 
+    const duplicateSourceId = this.duplicateSourceTaskId();
+    if (duplicateSourceId) {
+      this.submitDuplicate(projectId, duplicateSourceId);
+      return;
+    }
+
     this.isCreating.set(true);
     this.actionError.set(null);
     const raw = this.createForm.getRawValue();
@@ -190,8 +198,35 @@ export class ProjectTasks implements OnInit {
       });
   }
 
+  protected startDuplicate(task: Task): void {
+    this.duplicateSourceTaskId.set(task.id);
+    this.subtaskParentId.set(null);
+    this.editingTaskId.set(null);
+    this.historyTaskId.set(null);
+    this.deleteConfirmTaskId.set(null);
+    this.duplicateIncludeSubtasks.set(false);
+    this.duplicateIncludeLinks.set(false);
+    this.createForm.patchValue({
+      title: `${task.title} (copy)`,
+      description: task.description ?? '',
+      assigneeId: task.assigneeId,
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+      status: task.status,
+      recurringEnabled: !!task.recurringRule,
+      recurringFrequency: task.recurringRule?.frequency ?? 'weekly',
+      recurringInterval: task.recurringRule?.interval ?? 1,
+    });
+  }
+
+  protected cancelDuplicate(): void {
+    this.duplicateSourceTaskId.set(null);
+    this.duplicateIncludeSubtasks.set(false);
+    this.duplicateIncludeLinks.set(false);
+  }
+
   protected startSubtask(parentId: string): void {
     const parent = this.flatTasks().find((task) => task.id === parentId);
+    this.duplicateSourceTaskId.set(null);
     this.subtaskParentId.set(parentId);
     this.editingTaskId.set(null);
     this.historyTaskId.set(null);
@@ -210,6 +245,7 @@ export class ProjectTasks implements OnInit {
   }
 
   protected startEdit(task: Task): void {
+    this.duplicateSourceTaskId.set(null);
     this.editingTaskId.set(task.id);
     this.subtaskParentId.set(null);
     this.historyTaskId.set(null);
@@ -308,31 +344,6 @@ export class ProjectTasks implements OnInit {
 
     const milestoneTitle = this.milestones().find((milestone) => milestone.id === parent.milestoneId)?.title;
     return milestoneTitle ? `Inherits milestone: ${milestoneTitle}` : 'Inherits parent milestone';
-  }
-
-  protected duplicateTask(taskId: string): void {
-    const projectId = this.projectId();
-    if (!projectId || this.actingTaskId()) {
-      return;
-    }
-
-    this.actingTaskId.set(taskId);
-    this.actionError.set(null);
-
-    this.projectService
-      .duplicateTask(projectId, taskId, {
-        includeSubtasks: this.duplicateIncludeSubtasks(),
-      })
-      .subscribe({
-        next: () => {
-          this.actingTaskId.set(null);
-          this.reloadTasks(projectId);
-        },
-        error: () => {
-          this.actingTaskId.set(null);
-          this.actionError.set('Unable to duplicate task. Try again in a moment.');
-        },
-      });
   }
 
   protected onTemplateSubmit(): void {
@@ -501,6 +512,12 @@ export class ProjectTasks implements OnInit {
   }
 
   protected getCreateHeading(): string {
+    const duplicateId = this.duplicateSourceTaskId();
+    if (duplicateId) {
+      const source = this.flatTasks().find((task) => task.id === duplicateId);
+      return source ? `Duplicate “${source.title}”` : 'Duplicate task';
+    }
+
     const parentId = this.subtaskParentId();
     if (!parentId) {
       return 'Create task';
@@ -764,5 +781,52 @@ export class ProjectTasks implements OnInit {
 
   private toIsoDueDate(dateInput: string): string {
     return `${dateInput}T00:00:00.000Z`;
+  }
+
+  private submitDuplicate(projectId: string, sourceTaskId: string): void {
+    this.isCreating.set(true);
+    this.actionError.set(null);
+    const raw = this.createForm.getRawValue();
+
+    this.projectService
+      .duplicateTask(projectId, sourceTaskId, {
+        title: raw.title,
+        description: raw.description,
+        assigneeId: raw.assigneeId,
+        dueDate: this.toIsoDueDate(raw.dueDate),
+        status: raw.status,
+        includeSubtasks: this.duplicateIncludeSubtasks(),
+        includeLinks: this.duplicateIncludeLinks(),
+        recurringRule: raw.recurringEnabled
+          ? {
+              frequency: raw.recurringFrequency,
+              interval: raw.recurringInterval,
+              endDate: null,
+            }
+          : null,
+      })
+      .subscribe({
+        next: () => {
+          this.isCreating.set(false);
+          this.duplicateSourceTaskId.set(null);
+          this.duplicateIncludeSubtasks.set(false);
+          this.duplicateIncludeLinks.set(false);
+          this.createForm.reset({
+            title: '',
+            description: '',
+            assigneeId: '',
+            dueDate: '',
+            status: 'open',
+            recurringEnabled: false,
+            recurringFrequency: 'weekly',
+            recurringInterval: 1,
+          });
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.isCreating.set(false);
+          this.actionError.set('Unable to duplicate task. Try again in a moment.');
+        },
+      });
   }
 }

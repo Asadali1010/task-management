@@ -738,6 +738,49 @@ export function duplicateTask(
   return duplicateTaskWithParent(projectId, source, request, source.parentTaskId ?? null, true);
 }
 
+function copyTaskDependencyLinks(
+  record: MockProjectRecord,
+  sourceTaskId: string,
+  newTaskId: string,
+): void {
+  const existingPairs = new Set(
+    record.taskDependencies.map(
+      (dependency) =>
+        `${dependency.taskId}:${dependency.dependsOnTaskId}:${dependency.linkType}`,
+    ),
+  );
+
+  const linksInvolvingSource = record.taskDependencies.filter(
+    (dependency) =>
+      dependency.taskId === sourceTaskId || dependency.dependsOnTaskId === sourceTaskId,
+  );
+
+  for (const link of linksInvolvingSource) {
+    const remappedTaskId = link.taskId === sourceTaskId ? newTaskId : link.taskId;
+    const remappedDependsOnTaskId =
+      link.dependsOnTaskId === sourceTaskId ? newTaskId : link.dependsOnTaskId;
+
+    if (remappedTaskId === remappedDependsOnTaskId) {
+      continue;
+    }
+
+    const pairKey = `${remappedTaskId}:${remappedDependsOnTaskId}:${link.linkType}`;
+    if (existingPairs.has(pairKey)) {
+      continue;
+    }
+
+    const dependency: TaskDependency = {
+      id: `dep-${nextDependencyId++}`,
+      taskId: remappedTaskId,
+      dependsOnTaskId: remappedDependsOnTaskId,
+      linkType: link.linkType,
+    };
+
+    record.taskDependencies = [...record.taskDependencies, dependency];
+    existingPairs.add(pairKey);
+  }
+}
+
 function duplicateTaskWithParent(
   projectId: string,
   source: Task,
@@ -751,16 +794,29 @@ function duplicateTaskWithParent(
   }
 
   const actor = defaultActor(record);
-  const duplicateTitle = isRoot && request.title ? request.title : `${source.title} (copy)`;
+  const duplicateTitle = isRoot
+    ? (request.title ?? `${source.title} (copy)`)
+    : `${source.title} (copy)`;
   const createResult = createTask(projectId, {
     title: duplicateTitle,
-    status: source.status,
-    milestoneId: source.milestoneId,
+    status: isRoot && request.status !== undefined ? request.status : source.status,
+    milestoneId:
+      isRoot && request.milestoneId !== undefined ? request.milestoneId : source.milestoneId,
     parentTaskId,
-    description: source.description ?? '',
-    assigneeId: source.assigneeId,
-    dueDate: source.dueDate ?? new Date().toISOString(),
-    recurringRule: source.recurringRule ?? null,
+    description:
+      isRoot && request.description !== undefined
+        ? request.description
+        : (source.description ?? ''),
+    assigneeId:
+      isRoot && request.assigneeId !== undefined ? request.assigneeId : source.assigneeId,
+    dueDate:
+      isRoot && request.dueDate !== undefined
+        ? request.dueDate
+        : (source.dueDate ?? new Date().toISOString()),
+    recurringRule:
+      isRoot && request.recurringRule !== undefined
+        ? request.recurringRule
+        : (source.recurringRule ?? null),
   });
 
   if (createResult.kind !== 'success') {
@@ -777,10 +833,20 @@ function duplicateTaskWithParent(
     actor,
   );
 
+  if (isRoot && request.includeLinks) {
+    copyTaskDependencyLinks(record, source.id, duplicate.id);
+  }
+
   if (request.includeSubtasks) {
     const subtasks = activeTasks(record).filter((taskItem) => taskItem.parentTaskId === source.id);
     for (const subtask of subtasks) {
-      duplicateTaskWithParent(projectId, subtask, {}, duplicate.id, false);
+      duplicateTaskWithParent(
+        projectId,
+        subtask,
+        { includeLinks: request.includeLinks },
+        duplicate.id,
+        false,
+      );
     }
   }
 

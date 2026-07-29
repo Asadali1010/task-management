@@ -567,6 +567,27 @@ app-rich-text-editor.task-form-input-invalid .rich-text-editor {
   border-radius: var(--pt-r-sm);
 }
 
+.task-duplicate-context {
+  margin: 0 0 var(--pt-md);
+  padding: var(--pt-sm) var(--pt-md);
+  font-size: var(--pt-fs-sm);
+  font-weight: 500;
+  color: var(--pt-muted);
+  background: var(--pt-bg-a);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-r-sm);
+}
+
+.task-duplicate-fieldset {
+  margin: 0;
+  padding: var(--pt-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pt-sm);
+  border: 1px solid var(--pt-border);
+  border-radius: var(--pt-r-sm);
+}
+
 .task-subtask-progress {
   margin-top: var(--pt-sm);
 }
@@ -736,10 +757,6 @@ app-rich-text-editor.task-form-input-invalid .rich-text-editor {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--pt-md);
-}
-
-.task-duplicate-options {
-  margin: 0;
 }
 
 .tasks-deleted-panel {
