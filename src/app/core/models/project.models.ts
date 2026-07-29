@@ -129,10 +129,13 @@ export interface RecurringRule {
   endDate: string | null;
 }
 
+export type TaskLinkType = 'blocks' | 'relates_to';
+
 export interface TaskDependency {
   id: string;
   taskId: string;
   dependsOnTaskId: string;
+  linkType: TaskLinkType;
 }
 
 export type TaskHistoryAction =
@@ -227,6 +230,7 @@ export interface BulkTaskActionResponse {
 
 export interface AddTaskDependencyRequest {
   dependsOnTaskId: string;
+  linkType: TaskLinkType;
 }
 
 export interface TaskHierarchyResponse {

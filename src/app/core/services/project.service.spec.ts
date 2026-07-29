@@ -543,7 +543,9 @@ describe('ProjectService', () => {
 
   it('should list task dependencies for a project', () => {
     const dependenciesResponse = {
-      dependencies: [{ id: 'dep-1', taskId: 'task-5', dependsOnTaskId: 'task-4' }],
+      dependencies: [
+        { id: 'dep-1', taskId: 'task-5', dependsOnTaskId: 'task-4', linkType: 'blocks' },
+      ],
     };
 
     service.listTaskDependencies('proj-1').subscribe((response) => {
@@ -616,10 +618,15 @@ describe('ProjectService', () => {
     req.flush(bulkResponse);
   });
 
-  it('should add a task dependency', () => {
-    const dependencyBody = { dependsOnTaskId: 'task-4' };
+  it('should add a task dependency with link type', () => {
+    const dependencyBody = { dependsOnTaskId: 'task-4', linkType: 'blocks' as const };
     const dependencyResponse = {
-      dependency: { id: 'dep-2', taskId: 'task-5', dependsOnTaskId: 'task-4' },
+      dependency: {
+        id: 'dep-2',
+        taskId: 'task-5',
+        dependsOnTaskId: 'task-4',
+        linkType: 'blocks' as const,
+      },
     };
 
     service.addTaskDependency('proj-1', 'task-5', dependencyBody).subscribe((response) => {
@@ -628,6 +635,29 @@ describe('ProjectService', () => {
 
     const req = httpMock.expectOne(
       `${environment.apiUrl}/projects/proj-1/tasks/task-5/dependencies`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(dependencyBody);
+    req.flush(dependencyResponse);
+  });
+
+  it('should add a relates_to task dependency', () => {
+    const dependencyBody = { dependsOnTaskId: 'task-3', linkType: 'relates_to' as const };
+    const dependencyResponse = {
+      dependency: {
+        id: 'dep-3',
+        taskId: 'task-1',
+        dependsOnTaskId: 'task-3',
+        linkType: 'relates_to' as const,
+      },
+    };
+
+    service.addTaskDependency('proj-1', 'task-1', dependencyBody).subscribe((response) => {
+      expect(response).toEqual(dependencyResponse);
+    });
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/projects/proj-1/tasks/task-1/dependencies`,
     );
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(dependencyBody);

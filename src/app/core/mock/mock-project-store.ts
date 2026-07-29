@@ -33,6 +33,11 @@ export type TaskOperationResult =
   | { kind: 'validation_error' }
   | { kind: 'not_found' };
 
+export type AddTaskDependencyResult =
+  | { kind: 'success'; dependency: TaskDependency }
+  | { kind: 'validation_error' }
+  | { kind: 'not_found' };
+
 function cloneRecords(): Record<string, MockProjectRecord> {
   return structuredClone(seedProjects);
 }
@@ -868,22 +873,43 @@ export function bulkTaskAction(
   return { affectedCount: 0, tasks: [] };
 }
 
+function isValidLinkType(value: unknown): value is TaskDependency['linkType'] {
+  return value === 'blocks' || value === 'relates_to';
+}
+
+function hasDirectCircularBlocks(
+  dependencies: TaskDependency[],
+  taskId: string,
+  dependsOnTaskId: string,
+): boolean {
+  return dependencies.some(
+    (dependency) =>
+      dependency.linkType === 'blocks' &&
+      dependency.taskId === dependsOnTaskId &&
+      dependency.dependsOnTaskId === taskId,
+  );
+}
+
 export function addTaskDependency(
   projectId: string,
   taskId: string,
   request: AddTaskDependencyRequest,
-): TaskDependency | undefined {
+): AddTaskDependencyResult {
   const record = getRecord(projectId);
   if (!record) {
-    return undefined;
+    return { kind: 'not_found' };
   }
 
   if (!findTask(record, taskId) || !findTask(record, request.dependsOnTaskId)) {
-    return undefined;
+    return { kind: 'not_found' };
+  }
+
+  if (!isValidLinkType(request.linkType)) {
+    return { kind: 'validation_error' };
   }
 
   if (taskId === request.dependsOnTaskId) {
-    return undefined;
+    return { kind: 'validation_error' };
   }
 
   const alreadyExists = record.taskDependencies.some(
@@ -891,7 +917,14 @@ export function addTaskDependency(
       dependency.taskId === taskId && dependency.dependsOnTaskId === request.dependsOnTaskId,
   );
   if (alreadyExists) {
-    return undefined;
+    return { kind: 'validation_error' };
+  }
+
+  if (
+    request.linkType === 'blocks' &&
+    hasDirectCircularBlocks(record.taskDependencies, taskId, request.dependsOnTaskId)
+  ) {
+    return { kind: 'validation_error' };
   }
 
   const actor = defaultActor(record);
@@ -899,6 +932,7 @@ export function addTaskDependency(
     id: `dep-${nextDependencyId++}`,
     taskId,
     dependsOnTaskId: request.dependsOnTaskId,
+    linkType: request.linkType,
   };
 
   record.taskDependencies = [...record.taskDependencies, dependency];
@@ -906,12 +940,12 @@ export function addTaskDependency(
     record,
     taskId,
     'dependency_added',
-    `Added dependency on task ${request.dependsOnTaskId}`,
+    `Added ${request.linkType} link to task ${request.dependsOnTaskId}`,
     actor,
   );
   appendActivity(record, 'task_dependency_added', `${actor} added a task dependency`, actor);
 
-  return { ...dependency };
+  return { kind: 'success', dependency: { ...dependency } };
 }
 
 export function removeTaskDependency(

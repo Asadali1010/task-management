@@ -32,6 +32,8 @@ describe('ProjectTasks', () => {
     bulkTaskAction: ReturnType<typeof vi.fn>;
     getTaskHistory: ReturnType<typeof vi.fn>;
     restoreTask: ReturnType<typeof vi.fn>;
+    addTaskDependency: ReturnType<typeof vi.fn>;
+    removeTaskDependency: ReturnType<typeof vi.fn>;
   };
   let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
@@ -73,10 +75,30 @@ describe('ProjectTasks', () => {
         },
       ],
     },
+    {
+      id: 'task-4',
+      title: 'Migrate legacy blog content',
+      status: 'done',
+      milestoneId: 'ms-2',
+      assigneeId: 'mem-1',
+      description: 'Move archived blog posts.',
+      dueDate: '2026-06-01T00:00:00.000Z',
+      subtasks: [],
+    },
+    {
+      id: 'task-5',
+      title: 'Redirect old URLs',
+      status: 'open',
+      milestoneId: 'ms-2',
+      assigneeId: 'mem-2',
+      description: 'Configure 301 redirects.',
+      dueDate: '2026-08-15T00:00:00.000Z',
+      subtasks: [],
+    },
   ];
 
   const mockDependencies: TaskDependency[] = [
-    { id: 'dep-1', taskId: 'task-5', dependsOnTaskId: 'task-4' },
+    { id: 'dep-1', taskId: 'task-5', dependsOnTaskId: 'task-4', linkType: 'blocks' },
   ];
 
   const mockTemplates: TaskTemplate[] = [
@@ -121,6 +143,8 @@ describe('ProjectTasks', () => {
       bulkTaskAction: vi.fn(),
       getTaskHistory: vi.fn(),
       restoreTask: vi.fn(),
+      addTaskDependency: vi.fn(),
+      removeTaskDependency: vi.fn(),
     };
     paramMapSubject = new BehaviorSubject(convertToParamMap({ projectId: 'proj-1' }));
 
@@ -700,6 +724,12 @@ describe('ProjectTasks', () => {
     expect(html).not.toContain('<img');
   });
 
+  function getTaskCardByTitle(title: string): HTMLElement | undefined {
+    return Array.from(getCompiled().querySelectorAll('.task-card')).find((card) =>
+      card.textContent?.includes(title),
+    ) as HTMLElement | undefined;
+  }
+
   it('should create a subtask with parentTaskId when subtask form is submitted', () => {
     mockLoadSuccess();
     projectService.createTask.mockReturnValue(
@@ -735,5 +765,106 @@ describe('ProjectTasks', () => {
       'proj-1',
       expect.objectContaining({ title: 'Review outline', parentTaskId: 'task-3' }),
     );
+  });
+
+  it('should display task links on both linked task cards', () => {
+    mockLoadSuccess();
+    createComponent();
+
+    const task5Card = getTaskCardByTitle('Redirect old URLs');
+    const task4Card = getTaskCardByTitle('Migrate legacy blog content');
+
+    expect(task5Card).toBeDefined();
+    expect(task4Card).toBeDefined();
+    expect(task5Card!.textContent).toContain('Blocks');
+    expect(task5Card!.textContent).toContain('Migrate legacy blog content');
+    expect(task4Card!.textContent).toContain('Blocked by');
+    expect(task4Card!.textContent).toContain('Redirect old URLs');
+  });
+
+  it('should add a task link from a task card', () => {
+    mockLoadSuccess();
+    projectService.addTaskDependency.mockReturnValue(
+      of({
+        dependency: {
+          id: 'dep-new',
+          taskId: 'task-1',
+          dependsOnTaskId: 'task-3',
+          linkType: 'relates_to',
+        },
+      }),
+    );
+
+    createComponent();
+
+    const task1Card = getTaskCardByTitle('Update homepage hero');
+    expect(task1Card).toBeDefined();
+
+    const targetSelect = task1Card!.querySelector('#link-target-task-1') as HTMLSelectElement;
+    targetSelect.value = 'task-3';
+    targetSelect.dispatchEvent(new Event('change'));
+
+    const typeSelect = task1Card!.querySelector('#link-type-task-1') as HTMLSelectElement;
+    typeSelect.value = 'relates_to';
+    typeSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const addButton = task1Card!.querySelector('[aria-label="Add task link for Update homepage hero"]') as HTMLButtonElement;
+    addButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.addTaskDependency).toHaveBeenCalledWith('proj-1', 'task-1', {
+      dependsOnTaskId: 'task-3',
+      linkType: 'relates_to',
+    });
+    expect(projectService.listTaskDependencies).toHaveBeenCalledTimes(2);
+  });
+
+  it('should remove a task link from a task card', () => {
+    mockLoadSuccess();
+    projectService.removeTaskDependency.mockReturnValue(of(undefined));
+
+    createComponent();
+
+    const task5Card = getTaskCardByTitle('Redirect old URLs');
+    expect(task5Card).toBeDefined();
+
+    const removeButton = task5Card!.querySelector(
+      '[aria-label="Remove blocks link to Migrate legacy blog content"]',
+    ) as HTMLButtonElement;
+    removeButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.removeTaskDependency).toHaveBeenCalledWith('proj-1', 'task-5', 'dep-1');
+    expect(projectService.listTaskDependencies).toHaveBeenCalledTimes(2);
+  });
+
+  it('should show an error when adding a circular blocks link', () => {
+    mockLoadSuccess();
+    projectService.addTaskDependency.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400 })),
+    );
+
+    createComponent();
+
+    const task4Card = getTaskCardByTitle('Migrate legacy blog content');
+    expect(task4Card).toBeDefined();
+
+    const targetSelect = task4Card!.querySelector('#link-target-task-4') as HTMLSelectElement;
+    targetSelect.value = 'task-5';
+    targetSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const addButton = task4Card!.querySelector(
+      '[aria-label="Add task link for Migrate legacy blog content"]',
+    ) as HTMLButtonElement;
+    addButton.click();
+    fixture.detectChanges();
+
+    expect(projectService.addTaskDependency).toHaveBeenCalledWith('proj-1', 'task-4', {
+      dependsOnTaskId: 'task-5',
+      linkType: 'blocks',
+    });
+    expect(task4Card!.textContent).toContain('Circular "Blocks" relationships are not allowed');
   });
 });

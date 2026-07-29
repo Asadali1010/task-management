@@ -4,6 +4,7 @@ import {
   ProjectMember,
   Task,
   TaskDependency,
+  TaskLinkType,
   TaskHistoryEntry,
   TaskStatus,
   TaskTemplate,
@@ -101,8 +102,13 @@ function taskHistoryEntry(
   };
 }
 
-function taskDependency(id: string, taskId: string, dependsOnTaskId: string): TaskDependency {
-  return { id, taskId, dependsOnTaskId };
+function taskDependency(
+  id: string,
+  taskId: string,
+  dependsOnTaskId: string,
+  linkType: TaskLinkType = 'blocks',
+): TaskDependency {
+  return { id, taskId, dependsOnTaskId, linkType };
 }
 
 function member(
