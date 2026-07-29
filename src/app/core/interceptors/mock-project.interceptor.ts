@@ -205,14 +205,18 @@ export const mockProjectInterceptor: HttpInterceptorFn = (req, next) => {
   const taskDependencyMatch = path.match(/^\/projects\/([^/]+)\/tasks\/([^/]+)\/dependencies$/);
   if (req.method === 'POST' && taskDependencyMatch) {
     const body = req.body as AddTaskDependencyRequest;
-    const dependency = mockStore.addTaskDependency(
+    const result = mockStore.addTaskDependency(
       taskDependencyMatch[1],
       taskDependencyMatch[2],
       body,
     );
-    return dependency
-      ? jsonResponse<TaskDependencyResponse>({ dependency })
-      : notFound(req.url);
+    if (result.kind === 'success') {
+      return jsonResponse<TaskDependencyResponse>({ dependency: result.dependency });
+    }
+    if (result.kind === 'validation_error') {
+      return badRequest(req.url);
+    }
+    return notFound(req.url);
   }
 
   const removeDependencyMatch = path.match(

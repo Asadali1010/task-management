@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  addTaskDependency,
   createTask,
   deleteTask,
   listDeletedTasks,
+  listTaskDependencies,
   listTasks,
+  removeTaskDependency,
   resetMockStore,
   restoreTask,
   updateTask,
@@ -185,5 +188,70 @@ describe('mock-project-store task CRUD', () => {
       expect(restoreTask('proj-1', 'task-1')).toBeUndefined();
       expect(listTasks('proj-1')?.some((taskItem) => taskItem.id === 'task-1')).toBe(false);
     });
+  });
+});
+
+describe('mock-project-store task dependencies', () => {
+  beforeEach(() => {
+    resetMockStore();
+  });
+
+  it('creates a typed blocks link', () => {
+    const result = addTaskDependency('proj-1', 'task-6', {
+      dependsOnTaskId: 'task-3',
+      linkType: 'blocks',
+    });
+
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') {
+      expect(result.dependency.linkType).toBe('blocks');
+      expect(result.dependency.taskId).toBe('task-6');
+      expect(result.dependency.dependsOnTaskId).toBe('task-3');
+
+      const dependencies = listTaskDependencies('proj-1');
+      expect(dependencies?.some((dep) => dep.id === result.dependency.id)).toBe(true);
+    }
+  });
+
+  it('creates a typed relates_to link', () => {
+    const result = addTaskDependency('proj-1', 'task-1', {
+      dependsOnTaskId: 'task-2',
+      linkType: 'relates_to',
+    });
+
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') {
+      expect(result.dependency.linkType).toBe('relates_to');
+    }
+  });
+
+  it('removes an existing link', () => {
+    const removed = removeTaskDependency('proj-1', 'task-5', 'dep-1');
+
+    expect(removed).toBe(true);
+    expect(listTaskDependencies('proj-1')?.some((dep) => dep.id === 'dep-1')).toBe(false);
+  });
+
+  it('rejects direct circular blocks pairs', () => {
+    const result = addTaskDependency('proj-1', 'task-4', {
+      dependsOnTaskId: 'task-5',
+      linkType: 'blocks',
+    });
+
+    expect(result.kind).toBe('validation_error');
+  });
+
+  it('allows reverse relates_to links without circular blocks rejection', () => {
+    addTaskDependency('proj-1', 'task-1', {
+      dependsOnTaskId: 'task-2',
+      linkType: 'relates_to',
+    });
+
+    const result = addTaskDependency('proj-1', 'task-2', {
+      dependsOnTaskId: 'task-1',
+      linkType: 'relates_to',
+    });
+
+    expect(result.kind).toBe('success');
   });
 });

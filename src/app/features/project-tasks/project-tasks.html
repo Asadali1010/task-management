@@ -537,6 +537,157 @@
                           Waiting on: {{ getBlockingTaskTitles(row.node.id) }}
                         </p>
                       }
+                      <section
+                        class="task-links"
+                        [attr.aria-labelledby]="'task-links-heading-' + row.node.id"
+                      >
+                        <h4 [id]="'task-links-heading-' + row.node.id" class="task-links-heading">
+                          Task links
+                        </h4>
+                        @if (getOutgoingLinks(row.node.id).length > 0) {
+                          <ul class="task-links-list" aria-label="Outgoing task links">
+                            @for (link of getOutgoingLinks(row.node.id); track link.id) {
+                              <li class="task-link-item task-link-outgoing">
+                                <span class="task-link-type">{{
+                                  formatOutgoingLinkLabel(link.linkType)
+                                }}</span>
+                                <span class="task-link-title">{{
+                                  getTaskTitle(link.dependsOnTaskId)
+                                }}</span>
+                                <button
+                                  type="button"
+                                  class="tasks-btn tasks-btn-secondary tasks-btn-sm task-link-remove"
+                                  (click)="removeTaskLink(link)"
+                                  [disabled]="removingLinkId() === link.id"
+                                  [attr.aria-label]="
+                                    'Remove ' +
+                                    formatOutgoingLinkLabel(link.linkType).toLowerCase() +
+                                    ' link to ' +
+                                    getTaskTitle(link.dependsOnTaskId)
+                                  "
+                                >
+                                  @if (removingLinkId() === link.id) {
+                                    Removing…
+                                  } @else {
+                                    Remove
+                                  }
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        }
+                        @if (getIncomingLinks(row.node.id).length > 0) {
+                          <ul class="task-links-list" aria-label="Incoming task links">
+                            @for (link of getIncomingLinks(row.node.id); track link.id) {
+                              <li class="task-link-item task-link-incoming">
+                                <span class="task-link-type">{{
+                                  formatIncomingLinkLabel(link.linkType)
+                                }}</span>
+                                <span class="task-link-title">{{ getTaskTitle(link.taskId) }}</span>
+                                <button
+                                  type="button"
+                                  class="tasks-btn tasks-btn-secondary tasks-btn-sm task-link-remove"
+                                  (click)="removeTaskLink(link)"
+                                  [disabled]="removingLinkId() === link.id"
+                                  [attr.aria-label]="
+                                    'Remove ' +
+                                    formatIncomingLinkLabel(link.linkType).toLowerCase() +
+                                    ' link from ' +
+                                    getTaskTitle(link.taskId)
+                                  "
+                                >
+                                  @if (removingLinkId() === link.id) {
+                                    Removing…
+                                  } @else {
+                                    Remove
+                                  }
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        }
+                        @if (getLinkError(row.node.id); as linkError) {
+                          <p
+                            class="task-link-error"
+                            role="alert"
+                            [attr.id]="'task-link-error-' + row.node.id"
+                          >
+                            {{ linkError }}
+                          </p>
+                        }
+                        @if (getLinkableTasks(row.node.id).length > 0) {
+                          <form
+                            class="task-link-form"
+                            (submit)="$event.preventDefault(); addTaskLink(row.node.id)"
+                            novalidate
+                          >
+                            <div class="task-link-form-row">
+                              <div class="task-form-field">
+                                <label
+                                  [for]="'link-target-' + row.node.id"
+                                  class="task-form-label"
+                                  >Link to task</label
+                                >
+                                <select
+                                  [id]="'link-target-' + row.node.id"
+                                  class="task-form-input task-link-select"
+                                  [value]="getLinkDraft(row.node.id).targetTaskId"
+                                  (change)="
+                                    updateLinkDraft(row.node.id, {
+                                      targetTaskId: $any($event.target).value,
+                                    })
+                                  "
+                                  [attr.aria-describedby]="
+                                    getLinkError(row.node.id)
+                                      ? 'task-link-error-' + row.node.id
+                                      : null
+                                  "
+                                >
+                                  <option value="">Select a task…</option>
+                                  @for (task of getLinkableTasks(row.node.id); track task.id) {
+                                    <option [value]="task.id">{{ task.title }}</option>
+                                  }
+                                </select>
+                              </div>
+                              <div class="task-form-field">
+                                <label
+                                  [for]="'link-type-' + row.node.id"
+                                  class="task-form-label"
+                                  >Link type</label
+                                >
+                                <select
+                                  [id]="'link-type-' + row.node.id"
+                                  class="task-form-input task-link-select"
+                                  [value]="getLinkDraft(row.node.id).linkType"
+                                  (change)="
+                                    updateLinkDraft(row.node.id, {
+                                      linkType: $any($event.target).value,
+                                    })
+                                  "
+                                >
+                                  <option value="blocks">Blocks</option>
+                                  <option value="relates_to">Relates to</option>
+                                </select>
+                              </div>
+                            </div>
+                            <button
+                              type="submit"
+                              class="tasks-btn tasks-btn-secondary tasks-btn-sm"
+                              [disabled]="
+                                !getLinkDraft(row.node.id).targetTaskId ||
+                                linkingTaskId() === row.node.id
+                              "
+                              [attr.aria-label]="'Add task link for ' + row.node.title"
+                            >
+                              @if (linkingTaskId() === row.node.id) {
+                                Adding link…
+                              } @else {
+                                Add link
+                              }
+                            </button>
+                          </form>
+                        }
+                      </section>
                     </div>
                   </div>
                   <div class="task-card-actions">

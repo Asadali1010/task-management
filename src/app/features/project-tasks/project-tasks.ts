@@ -15,10 +15,16 @@ import {
   TaskDependency,
   TaskHierarchyNode,
   TaskHistoryEntry,
+  TaskLinkType,
   TaskStatus,
   TaskTemplate,
 } from '../../core/models/project.models';
 import { ProjectService } from '../../core/services/project.service';
+
+interface TaskLinkDraft {
+  targetTaskId: string;
+  linkType: TaskLinkType;
+}
 
 interface FlatTaskRow {
   node: TaskHierarchyNode;
@@ -63,6 +69,10 @@ export class ProjectTasks implements OnInit {
   protected readonly projectMembers = signal<ProjectMember[]>([]);
   protected readonly deletedTasks = signal<Task[]>([]);
   protected readonly restoringTaskId = signal<string | null>(null);
+  protected readonly linkDrafts = signal<Record<string, TaskLinkDraft>>({});
+  protected readonly linkingTaskId = signal<string | null>(null);
+  protected readonly removingLinkId = signal<string | null>(null);
+  protected readonly linkErrors = signal<Record<string, string | null>>({});
 
   protected readonly deletedTaskGracePeriodDays = 30;
 
@@ -471,6 +481,111 @@ export class ProjectTasks implements OnInit {
 
     const parent = this.flatTasks().find((task) => task.id === parentId);
     return parent ? `Add subtask to “${parent.title}”` : 'Add subtask';
+  }
+
+  protected getOutgoingLinks(taskId: string): TaskDependency[] {
+    return this.dependencies().filter((dependency) => dependency.taskId === taskId);
+  }
+
+  protected getIncomingLinks(taskId: string): TaskDependency[] {
+    return this.dependencies().filter((dependency) => dependency.dependsOnTaskId === taskId);
+  }
+
+  protected getTaskTitle(taskId: string): string {
+    return this.flatTasks().find((task) => task.id === taskId)?.title ?? 'Unknown task';
+  }
+
+  protected formatOutgoingLinkLabel(linkType: TaskLinkType): string {
+    return linkType === 'blocks' ? 'Blocks' : 'Relates to';
+  }
+
+  protected formatIncomingLinkLabel(linkType: TaskLinkType): string {
+    return linkType === 'blocks' ? 'Blocked by' : 'Related to';
+  }
+
+  protected getLinkableTasks(taskId: string): Task[] {
+    const linkedTargetIds = new Set(
+      this.getOutgoingLinks(taskId).map((dependency) => dependency.dependsOnTaskId),
+    );
+
+    return this.flatTasks().filter((task) => task.id !== taskId && !linkedTargetIds.has(task.id));
+  }
+
+  protected getLinkDraft(taskId: string): TaskLinkDraft {
+    return this.linkDrafts()[taskId] ?? { targetTaskId: '', linkType: 'blocks' };
+  }
+
+  protected updateLinkDraft(taskId: string, patch: Partial<TaskLinkDraft>): void {
+    this.linkDrafts.update((drafts) => ({
+      ...drafts,
+      [taskId]: { ...this.getLinkDraft(taskId), ...patch },
+    }));
+  }
+
+  protected getLinkError(taskId: string): string | null {
+    return this.linkErrors()[taskId] ?? null;
+  }
+
+  protected addTaskLink(taskId: string): void {
+    const projectId = this.projectId();
+    const draft = this.getLinkDraft(taskId);
+    if (!projectId || !draft.targetTaskId || this.linkingTaskId()) {
+      return;
+    }
+
+    this.linkingTaskId.set(taskId);
+    this.linkErrors.update((errors) => ({ ...errors, [taskId]: null }));
+    this.actionError.set(null);
+
+    this.projectService
+      .addTaskDependency(projectId, taskId, {
+        dependsOnTaskId: draft.targetTaskId,
+        linkType: draft.linkType,
+      })
+      .subscribe({
+        next: () => {
+          this.linkingTaskId.set(null);
+          this.linkDrafts.update((drafts) => ({
+            ...drafts,
+            [taskId]: { targetTaskId: '', linkType: 'blocks' },
+          }));
+          this.reloadTasks(projectId);
+        },
+        error: (error) => {
+          this.linkingTaskId.set(null);
+          const message =
+            error instanceof HttpErrorResponse && error.status === 400
+              ? 'Cannot add this link. Circular "Blocks" relationships are not allowed.'
+              : 'Unable to add task link. Try again in a moment.';
+          this.linkErrors.update((errors) => ({ ...errors, [taskId]: message }));
+        },
+      });
+  }
+
+  protected removeTaskLink(dependency: TaskDependency): void {
+    const projectId = this.projectId();
+    if (!projectId || this.removingLinkId()) {
+      return;
+    }
+
+    this.removingLinkId.set(dependency.id);
+    this.linkErrors.update((errors) => ({ ...errors, [dependency.taskId]: null }));
+
+    this.projectService
+      .removeTaskDependency(projectId, dependency.taskId, dependency.id)
+      .subscribe({
+        next: () => {
+          this.removingLinkId.set(null);
+          this.reloadTasks(projectId);
+        },
+        error: () => {
+          this.removingLinkId.set(null);
+          this.linkErrors.update((errors) => ({
+            ...errors,
+            [dependency.taskId]: 'Unable to remove task link. Try again in a moment.',
+          }));
+        },
+      });
   }
 
   private runBulkAction(options: { action: 'delete' } | { action: 'update_status'; status: TaskStatus }): void {
